@@ -28,24 +28,27 @@ setup(
     version=version,
     author=author,
     author_email='fabiomacedomendes@gmail.com',
-    url='',
-    description='A short description for your project.',
+    url='http://github.com/fabiommendes/ejudge',
+    description='A simple ejudge for Python. Supports several languages and '
+                'sandboxing.',
     long_description=open('README.rst').read(),
 
     # Classifiers (see https://pypi.python.org/pypi?%3Aaction=list_classifiers)
     classifiers=[
-        'Development Status :: 3 - Alpha',
+        'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: GNU General Public License (GPL)',
         'Operating System :: POSIX',
         'Programming Language :: Python',
+        'Topic :: Education',
         'Topic :: Software Development :: Libraries',
     ],
 
     # Packages and depencies
     package_dir={'': 'src'},
     packages=find_packages('src'),
-    install_requires=[],
+    install_requires=['psutil', 'pexpect',
+                      'iospec>=0.1.3', 'boxed>=0.1.3.1'],
     extras_require={
         'testing': ['pytest'],
     },

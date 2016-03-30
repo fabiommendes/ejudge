@@ -135,10 +135,10 @@ def _grade(iospec, manager, fast=True, build_error=None):
         case = build_error_test_case(ex, tb)
         return get_feedback(case, iospec)
 
-    if not iospec:
-        raise ValueError('cannot grade an iospec that has no cases')
     if isinstance(iospec, str):
         iospec = parse_string(iospec)
+    if not iospec:
+        raise ValueError('cannot grade an iospec that has no cases')
 
     value = decimal.Decimal(1)
     feedback = None
@@ -219,7 +219,7 @@ def _run(inputs, manager=None, build_error=None):
             cases = [manager.run(values) for values in inputs]
         result = iotypes.IoSpec(cases)
 
-    result.setmeta('context', manager.context)
+    #result.setmeta('context', manager.context)
     result.setmeta('lang', manager.name)
     result.setmeta('buildargs', manager.buildargs)
     result.setmeta('shellargs', manager.shellargs)
