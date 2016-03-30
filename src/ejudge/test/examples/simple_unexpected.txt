@@ -1,0 +1,16 @@
+----------------
+Unexpected Error
+----------------
+
+
+Expected answer:
+    x: < a >
+    y: < b >
+    result: ab
+
+Obtained:
+    x: < a >
+
+Error when running program:
+    ValueError("invalid literal for int() with base 10: String('a')",)
+Final grade: 0%

@@ -1,0 +1,18 @@
+------------
+ Extra Input
+------------
+
+
+Expected answer:
+    x: < a >
+    y: < b >
+    result: ab
+
+Obtained:
+    x: < a >
+    y: < b >
+    z:  ???
+...
+Your program is asking for more inputs than expected.
+
+Final grade: 0%

@@ -1,0 +1,8 @@
+
+# This files demonstrates the IOSpec syntax.
+# Text following a "#" are comments
+
+# This is the first example
+x: <a>
+y: <b>
+result: ab

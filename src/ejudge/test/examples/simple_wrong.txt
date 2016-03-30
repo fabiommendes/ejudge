@@ -1,0 +1,15 @@
+-------------
+ Wrong Answer
+-------------
+
+Expected answer:
+    x: < 1 >
+    y: < 2 >
+    result: 12
+
+Obtained:
+    x: < 1 >
+    y: < 2 >
+    result: 3
+
+Final grade: 0%

@@ -1,0 +1,16 @@
+--------------
+ Time Exceeded
+--------------
+
+
+Expected answer:
+    x: < a >
+    y: < b >
+    result: ab
+
+Obtained:
+    **empty**
+
+Your program is too slow!
+
+Final grade: 0%

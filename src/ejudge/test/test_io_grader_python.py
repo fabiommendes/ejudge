@@ -1,0 +1,82 @@
+from pprint import pprint
+import pytest
+from ejudge import io
+from iospec import parse_string, iotypes
+
+
+@pytest.fixture
+def iospec():
+    return parse_string(
+        'name: <foo>\n'
+        'hello foo!\n'
+        '\n'
+        'name: <bar>\n'
+        'hello bar!')
+
+
+@pytest.fixture
+def lang():
+    return 'python'
+
+
+@pytest.fixture
+def src_ok():
+    return (
+        'name = input("name: ")\n'
+        'print("hello %s!" % name)')
+
+
+@pytest.fixture
+def src_bad():
+    return (
+        'name = input("name: ")\n'
+        'print(name)')
+
+
+#
+# Test simple io.run() interactions
+#
+def test_run_ok(src_ok, lang, timeout=None, sandbox=False):
+    tree = io.run(src_ok, ['foo'], lang=lang, sandbox=sandbox, timeout=timeout)
+    case = tree[0]
+    tree.pprint()
+    assert tree
+    assert len(tree) == 1
+    assert case[0] == 'name: '
+    assert case[1] == 'foo'
+    assert case[2] == 'hello foo!'
+
+
+def test_run_ok_with_timeout(src_ok, lang):
+    test_run_ok(src_ok, lang, timeout=1.0)
+
+
+def test_run_ok_with_sandbox(src_ok, lang):
+    test_run_ok(src_ok, lang, sandbox=True)
+
+
+def test_run_ok_with_sandbox_and_timeout(src_ok, lang):
+    test_run_ok(src_ok, lang, sandbox=True, timeout=1.0)
+
+
+#
+# Test io.grade() and check if the feedback is correct
+#
+def test_grade_correct(iospec, src_ok, lang):
+    feedback = io.grade(src_ok, iospec, lang=lang, sandbox=False)
+    assert isinstance(feedback.answer_key, iotypes.TestCase)
+    assert isinstance(feedback.case, iotypes.TestCase)
+    assert feedback.grade == 1
+    assert feedback.message is None
+    assert feedback.status == 'ok'
+
+
+def test_grade_wrong(iospec, src_bad, lang):
+    feedback = io.grade(src_bad, iospec, lang=lang, sandbox=False)
+    assert feedback.grade == 0
+    assert feedback.status == 'wrong-answer'
+    assert feedback.title == 'Wrong Answer'
+
+
+if __name__ == '__main__':
+    pytest.main('test_io_grader_python.py -v')

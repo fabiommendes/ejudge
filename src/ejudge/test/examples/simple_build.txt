@@ -1,0 +1,12 @@
+-----------
+Build Error
+-----------
+
+Your program has a syntax error:
+    Traceback (most recent call last):
+  File "<script>", line 3
+    print 'result: %s' % (x + y)
+                     ^
+SyntaxError: invalid syntax
+
+Final grade: 0%
