@@ -1,24 +1,30 @@
-Dependencies
-============
+=========================
+Installation instructions
+=========================
 
-PyJudge works only in Python 3 and has no additional dependencies.
+The easiest way to install ejudge is using pip::
+
+    $ python -m pip install ejudge
+
+This command will fetch the archive and its dependencies from the internet and
+install them for you. You may need to pick either ``python2``` or ``python3`` in
+order to select the correct python version.
+
+If you've downloaded the tarball, unpack it, and execute::
+
+    $ python setup.py install
+
+In either case, it is possible to perform local user installs by appending the
+``--user`` option.
 
 
-Installation commands
-=====================
+Troubleshoot
+------------
 
-If you downloaded a compressed package, simply unpack it and execute the 
-regular Python install::
+Windows users may find that these command will only works if typed from Python's
+installation directory.
 
-    $ python setup.py build
-    $ sudo python setup.py install
-
-This package is also available at PyPI and hence can be installed using `pip`::
-
-    $ sudo pip install pyjudge
-
-In Windows the command would be something like this (adapt for the correct 
-Python installation path)::
-
-    $ cd c:\python34
-    $ python -m pip install pyjudge
+Some Linux distributions (e.g. Ubuntu) install Python without installing pip.
+Please install it before. If you don't have root privileges, download the
+get-pip.py script at https://bootstrap.pypa.io/get-pip.py and execute it as
+``python get-pip.py --user``.

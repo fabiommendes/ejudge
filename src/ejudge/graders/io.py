@@ -1,19 +1,17 @@
-import io
-import os
 import decimal
 import functools
+import io
+import os
 import traceback
 import boxed
+from ejudge import util
+from ejudge.langs import BuildError, manager_from_lang, lang_from_extension
 from iospec import iotypes, parse_string
 from iospec.feedback import get_feedback
 from iospec.iotypes import TestCase
-from ejudge import util
-from ejudge.langs import LanguageManager
-
 
 # Python print function using the standard stdout
 __all__ = ['grade', 'run', 'BuildError']
-BuildError = LanguageManager.BuildError
 grade = run = None
 
 
@@ -21,7 +19,7 @@ def build_and_run(func, args, kwds, manager, timeout, raises):
     # Build
     try:
         manager.build()
-    except LanguageManager.BuildError as ex:
+    except BuildError as ex:
         if raises:
             raise
         return func(*args, build_error=(ex, ex.__traceback__))
@@ -45,14 +43,14 @@ def prepare_manager(func):
             if lang is None:
                 ext = os.path.splitext(path or src.name)[1] or '.'
                 try:
-                    lang = LanguageManager.registered_extensions[ext[1:]]
+                    lang = lang_from_extension(ext)
                 except KeyError:
                     raise ValueError('unknown extension: %r' % ext)
 
             # Normalize source string
             if not isinstance(src, str):
                 src = src.read()
-            manager = LanguageManager.from_language(lang, src)
+            manager = manager_from_lang(lang, src)
 
         # Sandbox build and running phases
         manager.is_sandboxed = sandbox

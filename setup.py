@@ -48,15 +48,15 @@ setup(
     package_dir={'': 'src'},
     packages=find_packages('src'),
     install_requires=['psutil', 'pexpect',
-                      'iospec>=0.1.3', 'boxed>=0.1.3.1'],
+                      'iospec>=0.2', 'boxed>=0.2'],
     extras_require={
         'testing': ['pytest'],
     },
 
     # Scripts
-    entry_points={
-        'console_scripts': ['ejudge = ejudge.__main__:main'],
-    },
+    #entry_points={
+    #    'console_scripts': ['ejudge = ejudge.__main__:main'],
+    #},
 
     # Other configurations
     zip_safe=False,

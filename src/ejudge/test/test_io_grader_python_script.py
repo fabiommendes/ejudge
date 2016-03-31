@@ -1,7 +1,6 @@
 import pytest
 from iospec import parse_string, iotypes
 from ejudge import io
-from ejudge.contrib import pytuga_language
 from ejudge.test.test_io_grader_python import (
     iospec,
     test_run_ok,
@@ -17,7 +16,7 @@ from ejudge.test.test_io_grader_python import (
 
 @pytest.fixture
 def lang():
-    return 'python3'
+    return 'python-script'
 
 
 if __name__ == '__main__':

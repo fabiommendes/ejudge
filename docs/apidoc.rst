@@ -1,3 +1,7 @@
+=============
+API Reference
+=============
+
 API documentation for the ejudge module.
 
 .. automodule:: ejudge
