@@ -1,7 +1,7 @@
 from pprint import pprint
 import pytest
 from ejudge import io
-from iospec import parse_string, iotypes
+from iospec import parse_string, types
 
 
 @pytest.fixture
@@ -64,8 +64,8 @@ def test_run_ok_with_sandbox_and_timeout(src_ok, lang):
 #
 def test_grade_correct(iospec, src_ok, lang):
     feedback = io.grade(src_ok, iospec, lang=lang, sandbox=False)
-    assert isinstance(feedback.answer_key, iotypes.TestCase)
-    assert isinstance(feedback.case, iotypes.TestCase)
+    assert isinstance(feedback.answer_key, types.TestCase)
+    assert isinstance(feedback.case, types.TestCase)
     assert feedback.grade == 1
     assert feedback.message is None
     assert feedback.status == 'ok'
@@ -78,5 +78,23 @@ def test_grade_wrong(iospec, src_bad, lang):
     assert feedback.title == 'Wrong Answer'
 
 
+def test_run_from_input_sequence(src_ok, lang):
+    tree = io.run(src_ok, [['foo'], ['bar']], lang=lang, sandbox=False)
+    assert len(tree) == 2
+    assert tree[0][2] == 'hello foo!'
+    assert tree[1][2] == 'hello bar!'
+
+
+def test_run_from_iospec_input(src_ok, lang):
+    case1 = types.IoTestCase([types.In('foo'), types.Out('foo')])
+    case2 = types.InputTestCase([types.In('bar')])
+    inpt = types.IoSpec([case1, case2])
+    tree = io.run(src_ok, inpt, lang=lang, sandbox=False)
+    assert len(tree) == 2
+    assert tree[0][2] == 'hello foo!'
+    assert tree[1][2] == 'hello bar!'
+
+
+
 if __name__ == '__main__':
-    pytest.main('test_io_grader_python.py -v')
+    pytest.main([__file__])

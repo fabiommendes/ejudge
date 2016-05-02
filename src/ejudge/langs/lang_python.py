@@ -1,6 +1,6 @@
 import io
 import traceback
-from iospec import iotypes
+from iospec import types
 from ejudge.langs import IntegratedLanguage, ScriptingLanguage
 
 
@@ -46,7 +46,7 @@ class PythonManager(Python3Mixin, IntegratedLanguage):
         assert context is not None
         code = compile(self.source, '<string>', 'exec')
         exec(code, context.globals, context.locals)
-        return iotypes.IoTestCase(self.flush_io())
+        return types.IoTestCase(self.flush_io())
 
 
 class PythonScriptManager(Python3Mixin, ScriptingLanguage):

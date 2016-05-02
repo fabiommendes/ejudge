@@ -7,8 +7,8 @@ import contextlib
 import subprocess
 import importlib
 from boxed.pinteract import Pinteract
-from iospec.iotypes import AttrDict
-from iospec import iotypes
+from iospec.types import AttrDict
+from iospec import types
 from iospec.runners import IoObserver
 from iospec.util import indent
 from ejudge import builtins
@@ -51,6 +51,10 @@ class LanguageManager:
     buildargs = None
     shellargs = None
     _send_early_termination_error = False
+
+    @property
+    def lang(self):
+        return self.name
 
     def __init__(self, source, is_sandboxed=True):
         self.source = source
@@ -140,7 +144,7 @@ class LanguageManager:
 
         except TimeoutError as ex:
             msg = 'Maximum execution time exceeded: %s sec' % timeout
-            result = iotypes.ErrorTestCase.timeout(
+            result = types.ErrorTestCase.timeout(
                 data=self.flush_io(),
                 error_message=msg)
 
@@ -251,10 +255,10 @@ class ExternalExecution(LanguageManager):
         def append_non_empty_out():
             data = process.receive()
             if data:
-                result.append(iotypes.Out(data))
+                result.append(types.Out(data))
 
         tmpdir = context.tempdir
-        result = iotypes.IoTestCase()
+        result = types.IoTestCase()
 
         # Execute script in the tmpdir and than go back once execution has
         # finished
@@ -269,7 +273,7 @@ class ExternalExecution(LanguageManager):
             for inpt in inputs:
                 try:
                     process.send(inpt)
-                    result.append(iotypes.In(inpt))
+                    result.append(types.In(inpt))
                 except RuntimeError as ex:
                     # Early termination: we still have to decide if an specific
                     # early termination error should exist.
@@ -284,15 +288,15 @@ class ExternalExecution(LanguageManager):
                             msg = ('process closed with consuming all inputs. '
                                    'List of unused inputs:\n')
 
-                            return iotypes.ErrorTestCase.earlytermination(
+                            return types.ErrorTestCase.earlytermination(
                                 list(result),
                                 error_message=msg + missing)
                         else:
-                            return iotypes.IoTestCase(list(result))
+                            return types.IoTestCase(list(result))
 
                     # This clause is just a safeguard. We don't expect to ever
                     # get here
-                    return iotypes.ErrorTestCase.runtime(
+                    return types.ErrorTestCase.runtime(
                         list(result),
                         error_message='An internal error occurred while trying '
                                       'to interact with the script: %s.' % ex
@@ -366,6 +370,7 @@ class CompiledLanguage(ExternalExecution):
         errmsgs = 'compilation is taking too long'
         try:
             os.chdir(tmpdir)
+            buildargs = list(self.buildargs)
             errmsgs = subprocess.check_output(self.buildargs, timeout=10)
 
             # Make executable readable and executable by everyone
@@ -398,7 +403,7 @@ def remove_trailing_newline(case):
 
     if case:
         last = case[-1]
-        if isinstance(last, iotypes.Out) and last.endswith('\n'):
+        if isinstance(last, types.Out) and last.endswith('\n'):
             last.data = str(last[:-1])
     return case
 

@@ -1,6 +1,6 @@
 import pytest
 from ejudge import io
-from iospec import parse_string, iotypes
+from iospec import parse_string, types
 from ejudge.test.test_io_grader_python import (
     iospec,
     test_run_ok,

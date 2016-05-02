@@ -1,75 +1,90 @@
 import decimal
-import functools
 import io
 import os
 import traceback
 import boxed
-from ejudge import util
 from ejudge.langs import BuildError, manager_from_lang, lang_from_extension
-from iospec import iotypes, parse_string
-from iospec.feedback import get_feedback
-from iospec.iotypes import TestCase
+from iospec import parse_string, TestCase, ErrorTestCase, IoSpec
+from iospec.feedback import get_feedback, Feedback
+
 
 # Python print function using the standard stdout
 __all__ = ['grade', 'run', 'BuildError']
-grade = run = None
 
 
-def build_and_run(func, args, kwds, manager, timeout, raises):
-    # Build
-    try:
-        manager.build()
-    except BuildError as ex:
-        if raises:
-            raise
-        return func(*args, build_error=(ex, ex.__traceback__))
+def run(source, inputs, lang=None, *,
+        timeout=None, raises=False, path=None, sandbox=True):
+    """Runs program with the given list of inputs and returns the
+    corresponding IoSpecTree.
 
-    # Run task
-    args += (manager,)
-    if timeout:
-        return util.timeout(func, args=args, kwargs=kwds, timeout=timeout)
+    Parameters
+    ----------
+
+    source : str or file
+        The source code for the test program
+    inputs : sequence
+        A sequence of input strings. If input is a sequence of sequences,
+        this function will perform multiple test cases.
+    lang : str
+        The name for the source code language. See
+        :func:`ejudge.graders.io.grade` for more details.
+    timeout : float
+        A time limit for the entire run (in seconds). If this attribute is not
+        given, the program will run without any timeout. This can be potentially
+        dangerous if the input program has an infinite loop.
+    sandbox : bool
+        Controls if code is run in sandboxed mode or not. Sandbox protection
+        is the default behavior on supported platforms.
+    raises : bool
+        If True, raise a BuildError if the build process fails. The default
+        behavior is to return a IoSpecTree with a single test case of type
+        'error-build'.
+    path : str
+        The absolute file path for the input string or file object.
+
+    Returns
+    -------
+
+    A :cls:`iospec.IoSpecTree structure. If inputs is a sequence of strings,
+    the resulting tree will have a single test case in its "cases" attribute.
+    """
+
+    manager = get_manager(lang, source, path)
+    manager.is_sandboxed = sandbox
+
+    # Normalize inputs
+    if isinstance(inputs, (IoSpec, TestCase)):
+        inputs = inputs.inputs()
     else:
-        return func(*args, **kwds)
+        if isinstance(inputs[0], str):
+            inputs = [list(inputs)]
+        else:
+            inputs = [list(x) for x in inputs]
+
+    # Execute
+    with manager.keep_cwd():
+        if sandbox:
+            imports = manager.modules()
+            result = boxed.run(
+                run_from_lang,
+                args=(manager.lang, manager.source, inputs),
+                kwargs={'raises': raises, 'timeout': timeout},
+                imports=imports,
+                serializer='json',
+            )
+            result = IoSpec.from_json(result)
+        else:
+            result = run_from_manager(
+                manager,
+                inputs,
+                raises=raises,
+                timeout=timeout
+            )
+    return result
 
 
-def prepare_manager(func):
-    """Decorate functions in this block to receive a configured manager"""
-
-    @functools.wraps(func)
-    def decorated(src, *args, path=None, lang=None, manager=None, raises=True,
-                  sandbox=False, timeout=None, **kwds):
-        # Fix language
-        if manager is None:
-            if lang is None:
-                ext = os.path.splitext(path or src.name)[1] or '.'
-                try:
-                    lang = lang_from_extension(ext)
-                except KeyError:
-                    raise ValueError('unknown extension: %r' % ext)
-
-            # Normalize source string
-            if not isinstance(src, str):
-                src = src.read()
-            manager = manager_from_lang(lang, src)
-
-        # Sandbox build and running phases
-        manager.is_sandboxed = sandbox
-        args = (func, args, kwds, manager, timeout, raises)
-        with manager.keep_cwd():
-            if sandbox:
-                imports = manager.modules()
-                result = boxed.run(build_and_run, args=args, imports=imports)
-            else:
-                result = build_and_run(*args)
-        return result
-
-    globals()[func.__name__[1:]] = decorated
-    return func
-
-
-# noinspection PyUnresolvedReferences
-@prepare_manager
-def _grade(iospec, manager, fast=True, build_error=None):
+def grade(source, iospec, lang=None, *,
+          fast=True, path=None, raises=True, sandbox=False, timeout=None):
     """
     Grade the string of source code by comparing the results of all inputs and
     outputs in the given template structure.
@@ -128,22 +143,49 @@ def _grade(iospec, manager, fast=True, build_error=None):
     None or a feedback structure.
     """
 
-    if build_error:
-        ex, tb = build_error
-        case = build_error_test_case(ex, tb)
-        return get_feedback(case, iospec)
+    manager = get_manager(lang, source, path)
+    manager.is_sandboxed = sandbox
 
+    # Normalize inputs
     if isinstance(iospec, str):
         iospec = parse_string(iospec)
     if not iospec:
         raise ValueError('cannot grade an iospec that has no cases')
+
+    with manager.keep_cwd():
+        kwds = {'raises': raises, 'timeout': timeout, 'fast': fast}
+
+        if sandbox:
+            imports = manager.modules()
+            result = boxed.run(
+                grade_from_lang,
+                args=(manager.lang, manager.source, iospec.to_json()),
+                kwargs=kwds,
+                imports=imports,
+                serializer='json',
+            )
+            result = Feedback.from_json(result)
+        else:
+            result = grade_from_manager(manager, iospec, **kwds)
+    return result
+
+
+def grade_from_manager(manager, iospec, *, raises, timeout, fast):
+    """Grade manager instance by comparing it to the given iospec."""
+
+    try:
+        manager.build()
+    except BuildError as ex:
+        if raises:
+            raise
+        return build_error_test_case(ex.__traceback__)
 
     value = decimal.Decimal(1)
     feedback = None
 
     for answer_key in iospec:
         inputs = answer_key.inputs()
-        case = manager.run(inputs)
+        case = manager.run(inputs, timeout=timeout)
         if not isinstance(case, TestCase):
             raise RuntimeError(
                 'Manager %s .run() method did not return a TestCase: got a %s '
@@ -165,67 +207,69 @@ def _grade(iospec, manager, fast=True, build_error=None):
     return feedback
 
 
-# noinspection PyUnresolvedReferences
-@prepare_manager
-def _run(inputs, manager=None, build_error=None):
+def grade_from_lang(lang, source, iospec, **kwds):
+    """A version of grade_from_manager() in which both the inputs and ouputs
+    can be converted to JSON."""
 
-    """Runs program with the given list of inputs and returns the
-    corresponding IoSpecTree.
+    manager = manager_from_lang(lang, source)
+    iospec = IoSpec.from_json(iospec)
+    result = grade_from_manager(manager, iospec, **kwds)
+    return result.to_json()
 
-    Parameters
-    ----------
 
-    src : str or file
-        The source code for the test program
-    inputs : sequence
-        A sequence of input strings. If input is a sequence of sequences,
-        this function will perform multiple test cases.
-    lang : str
-        The name for the source code language. See :func:`ejudge.graders.io.grade`
-        for more details.
-    timeout : float
-        A time limit for the entire run (in seconds). If this attribute is not
-        given, the program will run without any timeout. This can be potentially
-        dangerous if the input program has an infinite loop.
-    sandbox : bool
-        Controls if code is run in sandboxed mode or not. Sandbox protection
-        is the default behavior on supported platforms.
-    raises : bool
-        If True, raise a BuildError if the build process fails. The default
-        behavior is to return a IoSpecTree with a single test case of type
-        'error-build'.
-    path : str
-        The absolute file path for the input string or file object.
+def build_error_test_case(tb):
+    """Return an IoSpec data with a single ErrorTestCase.
 
-    Returns
-    -------
+    Construct the testcase from the given traceback."""
 
-    A :cls:`iospec.IoSpecTree structure. If inputs is a sequence of strings,
-    the resulting tree will have a single test case in its "cases" attribute.
-    """
+    out = io.StringIO()
+    traceback.print_tb(tb, file=out)
 
-    if build_error:
-        result = iotypes.IoSpec(build_error_test_case(*build_error))
-    else:
-        inputs = util.pushbackiter(inputs)
-        first = next(inputs)
-        inputs.push(first)
+    return ErrorTestCase.build(error_message=out.getvalue())
 
-        if isinstance(first, str):
-            cases = [manager.run(inputs)]
-        else:
-            cases = [manager.run(values) for values in inputs]
-        result = iotypes.IoSpec(cases)
 
-    #result.setmeta('context', manager.context)
+def run_from_manager(manager, inputs, *, raises, timeout):
+    """Run command from given manager."""
+
+    try:
+        manager.build()
+    except BuildError as ex:
+        if raises:
+            raise
+        return build_error_test_case(ex.__traceback__)
+
+    data = [manager.run(x) for x in inputs]
+    result = IoSpec(data)
     result.setmeta('lang', manager.name)
     result.setmeta('buildargs', manager.buildargs)
     result.setmeta('shellargs', manager.shellargs)
     return result
 
 
-def build_error_test_case(ex, tb):
-    out = io.StringIO()
-    traceback.print_tb(tb, file=out)
+def run_from_lang(lang, src, inputs, *, raises, timeout):
+    """Calls run_from_manager, but uses only JSON-encodable arguments.
 
-    return iotypes.ErrorTestCase.build(error_message=out.getvalue())
+    This function should be used in sandboxed environments."""
+
+    manager = manager_from_lang(lang, src)
+    manager.is_sandboxed = True
+    result = run_from_manager(manager, inputs, raises=raises, timeout=timeout)
+    return result.to_json()
+
+
+def get_manager(lang, src, path):
+    """Return a manager instance from the given language, source and path."""
+
+    # Fix language
+    if lang is None:
+        ext = os.path.splitext(path or src.name)[1] or '.'
+        try:
+            lang = lang_from_extension(ext)
+        except KeyError:
+            raise ValueError('unknown extension: %r' % ext)
+
+    # Normalize source string
+    if not isinstance(src, str):
+        src = src.read()
+
+    return manager_from_lang(lang, src)

@@ -1,5 +1,5 @@
 import pytuga
-from iospec import iotypes
+from iospec import types
 from ejudge.langs import ScriptingLanguage, IntegratedLanguage
 
 
@@ -24,7 +24,7 @@ class PytugaManager(IntegratedLanguage, ScriptingLanguage):
         assert context is not None
         pytuga.exec(self.source, context.globals, context.locals,
                     forbidden=True)
-        return iotypes.IoTestCase(self.flush_io())
+        return types.IoTestCase(self.flush_io())
 
     def exec(self, inputs, context):
         if self.is_sandboxed:
