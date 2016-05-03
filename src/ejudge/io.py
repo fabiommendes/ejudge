@@ -2,7 +2,7 @@ import decimal
 import io
 import os
 import traceback
-import boxed
+from boxed.jsonbox import run as run_sandbox
 from ejudge.langs import BuildError, manager_from_lang, lang_from_extension
 from iospec import parse_string, TestCase, ErrorTestCase, IoSpec
 from iospec.feedback import get_feedback, Feedback
@@ -65,12 +65,11 @@ def run(source, inputs, lang=None, *,
     with manager.keep_cwd():
         if sandbox:
             imports = manager.modules()
-            result = boxed.run(
+            result = run_sandbox(
                 run_from_lang,
                 args=(manager.lang, manager.source, inputs),
                 kwargs={'raises': raises, 'timeout': timeout},
                 imports=imports,
-                serializer='json',
             )
             result = IoSpec.from_json(result)
         else:
@@ -84,7 +83,7 @@ def run(source, inputs, lang=None, *,
 
 
 def grade(source, iospec, lang=None, *,
-          fast=True, path=None, raises=True, sandbox=False, timeout=None):
+          fast=True, path=None, raises=False, sandbox=False, timeout=None):
     """
     Grade the string of source code by comparing the results of all inputs and
     outputs in the given template structure.
@@ -93,7 +92,7 @@ def grade(source, iospec, lang=None, *,
     Parameters
     ----------
 
-    src : str or file object
+    source : str or file object
         The source string for the code or a file object
     iospec : IOSpec parse tree
         The expected template for correct answers
@@ -110,7 +109,7 @@ def grade(source, iospec, lang=None, *,
         | python2   | Executes in a separate Python 2 interpreter.             |
         +-----------+----------------------------------------------------------+
         | python3   | Executes in a separate Python 3 interpreter. Used mostly |
-        |           | for debuging since it lack in features and performance   |
+        |           | for debugging since it lack in features and performance  |
         |           | compared to the default "python" runner.                 |
         +-----------+----------------------------------------------------------+
         | tcc       | Compile C code with the tiny C compiler                  |
@@ -153,20 +152,20 @@ def grade(source, iospec, lang=None, *,
         raise ValueError('cannot grade an iospec that has no cases')
 
     with manager.keep_cwd():
-        kwds = {'raises': raises, 'timeout': timeout, 'fast': fast}
+        kwargs = {'raises': raises, 'timeout': timeout, 'fast': fast}
 
         if sandbox:
             imports = manager.modules()
-            result = boxed.run(
+            result = run_sandbox(
                 grade_from_lang,
                 args=(manager.lang, manager.source, iospec.to_json()),
-                kwargs=kwds,
+                kwargs=kwargs,
                 imports=imports,
-                serializer='json',
             )
             result = Feedback.from_json(result)
         else:
-            result = grade_from_manager(manager, iospec, **kwds)
+            # noinspection PyArgumentList
+            result = grade_from_manager(manager, iospec, **kwargs)
     return result
 
 
@@ -192,7 +191,11 @@ def grade_from_manager(manager, iospec, *, raises, timeout, fast):
         if error_message:
             case = ErrorTestCase.build(error_message=error_message)
         else:
-            case = manager.run(inputs, timeout=timeout)
+            try:
+                case = manager.run(inputs, timeout=timeout)
+            except Exception as ex:
+                case = error_test_case(ex, ex.__traceback__)
+
         if not isinstance(case, TestCase):
             raise RuntimeError(
                 'Manager %s .run() method did not return a TestCase: got a %s '
@@ -215,26 +218,27 @@ def grade_from_manager(manager, iospec, *, raises, timeout, fast):
     return feedback
 
 
-def grade_from_lang(lang, source, iospec, **kwds):
+def grade_from_lang(lang, source, iospec, **kwargs):
     """A version of grade_from_manager() in which both the inputs and ouputs
     can be converted to JSON."""
 
     manager = manager_from_lang(lang, source)
     iospec = IoSpec.from_json(iospec)
-    result = grade_from_manager(manager, iospec, **kwds)
+    result = grade_from_manager(manager, iospec, **kwargs)
     return result.to_json()
 
 
-def build_error_test_case(exc, tb, limit=None):
+def error_test_case(exc, tb, limit=None):
     """Return an IoSpec data with a single ErrorTestCase.
 
     Construct the testcase from the given traceback."""
 
     out = io.StringIO()
-    traceback.print_tb(tb, file=out, limit=limit)
+    traceback.print_tb(tb, file=out)
+    _, sep, tail = out.getvalue().partition('  File "main.py", line')
     message = ('Traceback (most recent call last)\n%s%s: %s' %
-               (out.getvalue(), exc.__class__.__name__, exc))
-    return ErrorTestCase.build(error_message=message)
+               (sep + tail, exc.__class__.__name__, exc))
+    return ErrorTestCase.runtime(error_message=message)
 
 
 def run_from_manager(manager, inputs, *, raises, timeout):
@@ -254,7 +258,7 @@ def run_from_manager(manager, inputs, *, raises, timeout):
         except Exception as ex:
             if raises:
                 raise
-            data.append(build_error_test_case(ex, ex.__traceback__))
+            data.append(error_test_case(ex, ex.__traceback__))
     result = IoSpec(data)
     result.setmeta('lang', manager.name)
     result.setmeta('buildargs', manager.buildargs)
