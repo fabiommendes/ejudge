@@ -175,23 +175,31 @@ def grade_from_manager(manager, iospec, *, raises, timeout, fast):
 
     try:
         manager.build()
+        error_message = None
     except BuildError as ex:
         if raises:
             raise
-        return build_error_test_case(ex.__traceback__)
+        error_message = str(ex)
 
     value = decimal.Decimal(1)
     feedback = None
 
     for answer_key in iospec:
+        # We run each test case and compare results. If there was a build error
+        # and raises is False, we create a new ErrorTestCase for each time
+        # the program is supposed to run.
         inputs = answer_key.inputs()
-        case = manager.run(inputs, timeout=timeout)
+        if error_message:
+            case = ErrorTestCase.build(error_message=error_message)
+        else:
+            case = manager.run(inputs, timeout=timeout)
         if not isinstance(case, TestCase):
             raise RuntimeError(
                 'Manager %s .run() method did not return a TestCase: got a %s '
                 'instance' % (type(manager).__name__, type(case).__name__),
             )
 
+        # Compute feedback and compare with worst results
         curr_feedback = get_feedback(case, answer_key)
 
         if feedback is None:
@@ -217,15 +225,16 @@ def grade_from_lang(lang, source, iospec, **kwds):
     return result.to_json()
 
 
-def build_error_test_case(tb):
+def build_error_test_case(exc, tb, limit=None):
     """Return an IoSpec data with a single ErrorTestCase.
 
     Construct the testcase from the given traceback."""
 
     out = io.StringIO()
-    traceback.print_tb(tb, file=out)
-
-    return ErrorTestCase.build(error_message=out.getvalue())
+    traceback.print_tb(tb, file=out, limit=limit)
+    message = ('Traceback (most recent call last)\n%s%s: %s' %
+               (out.getvalue(), exc.__class__.__name__, exc))
+    return ErrorTestCase.build(error_message=message)
 
 
 def run_from_manager(manager, inputs, *, raises, timeout):
@@ -236,9 +245,16 @@ def run_from_manager(manager, inputs, *, raises, timeout):
     except BuildError as ex:
         if raises:
             raise
-        return build_error_test_case(ex.__traceback__)
+        return IoSpec([ErrorTestCase.build(error_message=str(ex))])
 
-    data = [manager.run(x) for x in inputs]
+    data = []
+    for x in inputs:
+        try:
+            data.append(manager.run(x))
+        except Exception as ex:
+            if raises:
+                raise
+            data.append(build_error_test_case(ex, ex.__traceback__))
     result = IoSpec(data)
     result.setmeta('lang', manager.name)
     result.setmeta('buildargs', manager.buildargs)

@@ -6,6 +6,10 @@ import tempfile
 import contextlib
 import subprocess
 import importlib
+import traceback
+
+import io
+
 from boxed.pinteract import Pinteract
 from iospec.types import AttrDict
 from iospec import types
@@ -103,6 +107,10 @@ class LanguageManager:
             try:
                 self.syntax_check()
             except SyntaxError as ex:
+                file = io.StringIO()
+                traceback.print_tb(ex.__traceback__, file=file)
+                message = '%s%s: %s' % (file.getvalue(),
+                                        ex.__class__.__name__, ex)
                 raise BuildError(ex)
 
             self.context = self.build_context()

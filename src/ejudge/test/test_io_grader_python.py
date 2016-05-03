@@ -23,14 +23,16 @@ def lang():
 def src_ok():
     return (
         'name = input("name: ")\n'
-        'print("hello %s!" % name)')
+        'print("hello %s!" % name)'
+    )
 
 
 @pytest.fixture
 def src_bad():
     return (
         'name = input("name: ")\n'
-        'print(name)')
+        'print(name)'
+    )
 
 
 #
@@ -94,6 +96,24 @@ def test_run_from_iospec_input(src_ok, lang):
     assert tree[0][2] == 'hello foo!'
     assert tree[1][2] == 'hello bar!'
 
+
+def test_run_code_with_runtime_error():
+    feedback = io.run('1/0', ['foo'], lang='python', sandbox=False)
+    lastline = feedback[0].error_message.splitlines()[-1]
+    assert lastline.startswith('ZeroDivisionError')
+
+
+def test_run_code_with_syntax_error():
+    feedback = io.run('bad syntax', ['foo'], lang='python', sandbox=False)
+    assert len(feedback) == 1
+    assert isinstance(feedback[0], types.ErrorTestCase)
+    assert feedback[0].error_message == (
+        'Traceback (most recent call last):\n'
+        '  File "main.py", line 1\n'
+        '    bad syntax\n'
+        '             ^\n'
+        'SyntaxError: invalid syntax\n')
+    assert 'bad syntax' in feedback[0].error_message
 
 
 if __name__ == '__main__':

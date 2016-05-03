@@ -7,7 +7,7 @@ from ejudge.langs import IntegratedLanguage, ScriptingLanguage
 class Python3Mixin:
     def syntax_check(self):
         try:
-            compile(self.source, '<string>', 'exec')
+            compile(self.source, 'main.py', 'exec')
         except SyntaxError:
             out = io.StringIO()
             traceback.print_exc(file=out, limit=0)
@@ -44,7 +44,7 @@ class PythonManager(Python3Mixin, IntegratedLanguage):
 
     def exec(self, inputs, context):
         assert context is not None
-        code = compile(self.source, '<string>', 'exec')
+        code = compile(self.source, 'main.py', 'exec')
         exec(code, context.globals, context.locals)
         return types.IoTestCase(self.flush_io())
 
