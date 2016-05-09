@@ -48,7 +48,7 @@ setup(
     package_dir={'': 'src'},
     packages=find_packages('src'),
     install_requires=['psutil', 'pexpect',
-                      'iospec>=0.2', 'boxed>=0.3'],
+                      'iospec>=0.2.5', 'boxed>=0.3'],
     extras_require={
         'testing': ['pytest'],
     },
