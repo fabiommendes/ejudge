@@ -1,3 +1,4 @@
+import io
 import os
 import stat
 import abc
@@ -7,17 +8,14 @@ import contextlib
 import subprocess
 import importlib
 import traceback
-
-import io
-
 from boxed.pinteract import Pinteract
 from iospec.types import AttrDict
 from iospec import types
 from iospec.runners import IoObserver
 from iospec.util import indent
-from ejudge import builtins
+from ejudge import builtin_mgm
 from ejudge import util
-
+from ejudge.util import real_print
 
 __all__ = ['IntegratedLanguage', 'ScriptingLanguage', 'CompiledLanguage',
            'BuildError', 'manager_from_lang', 'lang_from_extension']
@@ -192,7 +190,7 @@ class IntegratedLanguage(LanguageManager):
         super().__init__(source)
         self.observer = IoObserver()
         self.globals = dict(globals or {})
-        self.locals = dict(locals or {})
+        self.locals = None if locals is None else dict(locals)
         self.builtins = {
             'print': self.observer.print,
             'input': self.observer.input,
@@ -200,27 +198,28 @@ class IntegratedLanguage(LanguageManager):
         self.builtins.update(builtins or {})
 
     def build_context(self):
-        return AttrDict(
-            globals=self.globals.copy(),
-            locals=self.locals.copy(),
-        )
+        globs = self.globals.copy()
+        if self.locals is None:
+            return AttrDict(globals=globs)
+        else:
+            return AttrDict(globals=globs, locals=self.locals.copy())
 
     def reset_context(self):
         self.context.globals = self.globals.copy()
-        self.context.locals = self.locals.copy()
+        if 'locals' in self.context:
+            self.context.locals = self.locals.copy()
 
     def flush_io(self):
         return self.observer.flush()
 
     def run(self, inputs, **kwds):
-        builtins.update(self.builtins)
-        self.observer.flush()
-        self.observer.extend_inputs(inputs)
-
+        builtin_mgm.update(self.builtins)
         try:
+            self.observer.flush()
+            self.observer.extend_inputs(inputs)
             result = super().run(inputs, **kwds)
         finally:
-            builtins.restore()
+            builtin_mgm.restore()
 
         return remove_trailing_newline(result)
 
@@ -396,11 +395,8 @@ class CompiledLanguage(ExternalExecution):
             if not self.is_sandboxed:
                 os.chdir(currpath)
 
-        return AttrDict(
-            tempdir=tmpdir,
-            shellargs=self.shellargs,
-            messages=errmsgs,
-        )
+        return AttrDict(tempdir=tmpdir, shellargs=self.shellargs,
+                        messages=errmsgs)
 
 
 def remove_trailing_newline(case):

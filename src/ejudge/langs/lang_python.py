@@ -24,7 +24,7 @@ class Python3Mixin:
 
         tblist = reversed(traceback.extract_tb(tb))
         for (filename, lineno, funcname, text) in tblist:
-            if 'judge' in filename:
+            if 'ejudge' in filename:
                 break
             if filename == '<string>':
                 text = codelines[lineno - 1].strip()
@@ -45,7 +45,10 @@ class PythonManager(Python3Mixin, IntegratedLanguage):
     def exec(self, inputs, context):
         assert context is not None
         code = compile(self.source, 'main.py', 'exec')
-        exec(code, context.globals, context.locals)
+        if hasattr(self.context, 'locals'):
+            exec(code, context.globals, context.locals)
+        else:
+            exec(code, context.globals)
         return types.IoTestCase(self.flush_io())
 
 

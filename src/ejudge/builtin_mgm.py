@@ -25,4 +25,7 @@ def restore():
     for k, v in vars(builtins).items():
         if k not in __original__:
             delattr(builtins, k)
-    update(__original__)
+    for k, v in __original__.items():
+        setattr(builtins, k, v)
+    builtins.print = _print
+    builtins.input = _input

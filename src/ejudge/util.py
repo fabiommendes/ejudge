@@ -8,6 +8,14 @@ from threading import Thread
 # Special IO functions for python script interactions
 #
 _print_func = print
+_stdout = sys.stdout
+
+
+def real_print(*args, **kwargs):
+    """Print function for the C's stdout."""
+
+    kwargs.setdefault('file', _stdout)
+    _print_func(*args, **kwargs)
 
 
 def capture_print(*args, **kwds):

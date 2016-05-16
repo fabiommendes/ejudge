@@ -3,9 +3,10 @@ import io
 import os
 import traceback
 from boxed.jsonbox import run as run_sandbox
-from ejudge.langs import BuildError, manager_from_lang, lang_from_extension
 from iospec import parse_string, TestCase, ErrorTestCase, IoSpec
-from iospec.feedback import get_feedback, Feedback
+from iospec.feedback import feedback as get_feedback, Feedback
+from ejudge.langs import BuildError, manager_from_lang, lang_from_extension
+from ejudge.util import real_print
 
 
 # Python print function using the standard stdout
@@ -14,8 +15,8 @@ __all__ = ['grade', 'run', 'BuildError']
 
 def run(source, inputs, lang=None, *,
         timeout=None, raises=False, path=None, sandbox=True):
-    """Runs program with the given list of inputs and returns the
-    corresponding IoSpecTree.
+    """Run program with the given list of inputs and returns the
+    corresponding :cls:`iospec.IoSpec` instance.
 
     Parameters
     ----------
@@ -24,7 +25,9 @@ def run(source, inputs, lang=None, *,
         The source code for the test program
     inputs : sequence
         A sequence of input strings. If input is a sequence of sequences,
-        this function will perform multiple test cases.
+        this function will perform multiple test cases. It can also be a IoSpec
+        or a TestCase instance which are used to extract the necessary input
+        strings.
     lang : str
         The name for the source code language. See
         :func:`ejudge.graders.io.grade` for more details.
@@ -37,16 +40,16 @@ def run(source, inputs, lang=None, *,
         is the default behavior on supported platforms.
     raises : bool
         If True, raise a BuildError if the build process fails. The default
-        behavior is to return a IoSpecTree with a single test case of type
-        'error-build'.
+        behavior is to return a IoSpec instance with a single ErrorTestCase with
+        a type string of 'error-build'.
     path : str
         The absolute file path for the input string or file object.
 
     Returns
     -------
 
-    A :cls:`iospec.IoSpecTree structure. If inputs is a sequence of strings,
-    the resulting tree will have a single test case in its "cases" attribute.
+    A :cls:`iospec.IoSpec` structure. If ``inputs`` is a sequence of strings,
+    the resulting tree will have a single test case.
     """
 
     manager = get_manager(lang, source, path)
@@ -95,7 +98,7 @@ def grade(source, iospec, lang=None, *,
     source : str or file object
         The source string for the code or a file object
     iospec : IOSpec parse tree
-        The expected template for correct answers
+        The expected template for correct answers.
     lang : str
         Programming language for the given source code. The judge accepts the
         following languages. Users can register plugins to support additional
@@ -128,18 +131,17 @@ def grade(source, iospec, lang=None, *,
     timeout : float
         Maximum time (in seconds) for the complete test to run.
 
-    Specific backends may support additional keyword arguments. The most common
+    Specific languages may support additional keyword arguments. The most common
     ones are shown bellow
 
     namespace (python): dict
-        The globals() namespace used to run a python script.
+        The global namespace used to run a python script.
 
 
     Returns
     -------
 
-    A named tuple of (grade, feedback) with a decimal grade normalized to 1 and
-    None or a feedback structure.
+    A :cls:`ejudge.Feedback` instance.
     """
 
     manager = get_manager(lang, source, path)
@@ -167,6 +169,13 @@ def grade(source, iospec, lang=None, *,
             # noinspection PyArgumentList
             result = grade_from_manager(manager, iospec, **kwargs)
     return result
+
+
+def get_answer_key_error(source, iospec, lang, **kwargs):
+    """Compares the results of running the given source code with the given
+    iospec and return the first test case which fails.
+
+    Return None if no test case fails and the answer key is acceptable."""
 
 
 def grade_from_manager(manager, iospec, *, raises, timeout, fast):
