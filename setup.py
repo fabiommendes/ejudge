@@ -56,9 +56,9 @@ setup(
     },
 
     # Scripts
-    # entry_points={
-    #    'console_scripts': ['ejudge = ejudge.__main__:main'],
-    # },
+    entry_points={
+       'console_scripts': ['ejudge = ejudge.__main__:main'],
+    },
 
     # Other configurations
     zip_safe=False,
