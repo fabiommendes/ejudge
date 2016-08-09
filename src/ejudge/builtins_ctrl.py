@@ -10,17 +10,21 @@ _print = print
 _input = input
 
 
-def update(D=None, **kwds):
-    """Update the buitins module with the given values"""
+def update(dic=None, **kwds):
+    """
+    Update the builtins module with the given values
+    """
 
-    D = dict(D or {})
-    D.update(kwds)
-    for k, v in D.items():
+    dic = dict(dic or {})
+    dic.update(kwds)
+    for k, v in dic.items():
         setattr(builtins, k, v)
 
 
 def restore():
-    """Restores builtins to original state"""
+    """
+    Restores builtins to original state
+    """
 
     for k, v in vars(builtins).items():
         if k not in __original__:

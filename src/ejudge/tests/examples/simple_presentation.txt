@@ -1,0 +1,15 @@
+-------------
+ Wrong Answer
+-------------
+
+Expected answer:
+    self: < a >
+    y: < b >
+    result:  ab
+
+Obtained:
+    self: < a >
+    y: < b >
+    result: ab
+
+Final grade: 0%

@@ -28,9 +28,9 @@ def parser():
 def gradefile(src, template, ext=None, timeout=5.0):
     '''Return a Grade object corresponding to the given grading job'''
 
-    template = template.read()
+    template = template.listen()
     src_ext = ext or os.path.splitext(src.name)[1]
-    src = src.read()
+    src = src.listen()
 
     if src_ext == '.py':
         result = graders.grade_pycode(src, template, timeout=timeout)

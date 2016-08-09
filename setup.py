@@ -7,8 +7,8 @@
 #
 
 import os
-from setuptools import setup, find_packages
 
+from setuptools import setup, find_packages
 
 # Meta information
 name = 'ejudge'
@@ -16,11 +16,9 @@ author = 'Fábio Macêdo Mendes'
 version = open('VERSION').read().strip()
 dirname = os.path.dirname(__file__)
 
-
 # Save version and author to __meta__.py
 with open(os.path.join(dirname, 'src', name, '__meta__.py'), 'w') as F:
     F.write('__version__ = %r\n__author__ = %r\n' % (version, author))
-
 
 setup(
     # Basic info
@@ -47,16 +45,20 @@ setup(
     # Packages and depencies
     package_dir={'': 'src'},
     packages=find_packages('src'),
-    install_requires=['psutil', 'pexpect',
-                      'iospec>=0.2.5', 'boxed>=0.3'],
+    install_requires=[
+        'psutil',
+        'pexpect',
+        'iospec>=0.2.7',
+        'boxed>=0.3'
+    ],
     extras_require={
         'testing': ['pytest'],
     },
 
     # Scripts
-    #entry_points={
+    # entry_points={
     #    'console_scripts': ['ejudge = ejudge.__main__:main'],
-    #},
+    # },
 
     # Other configurations
     zip_safe=False,

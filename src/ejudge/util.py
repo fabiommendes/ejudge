@@ -1,12 +1,17 @@
+import contextlib
 import io
+import os
 import sys
 import signal
+import traceback
 from threading import Thread
 
 
 #
 # Special IO functions for python script interactions
 #
+from iospec import types
+
 _print_func = print
 _stdout = sys.stdout
 
@@ -40,12 +45,13 @@ def __timeout_handler(signum, frame):
     raise TimeoutError()
 
 
-def timeout(func, args=(), kwargs={}, timeout=1.0, threading=True,
-            raises=True):
-    """Execute callable `func` with timeout. If timeout is None or zero,
+def timeout(func, args=(), kwargs={}, timeout=1.0, threading=True, raises=True):
+    """
+    Execute callable `func` with timeout. If timeout is None or zero,
     ignores any timeout exceptions.
 
-    If timeout exceeds, raises a TimeoutError"""
+    If timeout exceeds, raises a TimeoutError.
+    """
 
     if not timeout or not 1 / timeout:
         return func(*args, **kwargs)
@@ -136,6 +142,54 @@ class pushbackiter:
         self.buffer.append(value)
 
 
-if __name__ == '__main__':
-    from doctest import testmod
-    testmod()
+@contextlib.contextmanager
+def keep_cwd():
+    """
+    Context manager that restores the cwd at the beginning of execution when it
+    exits the with block."""
+
+    currpath = os.getcwd()
+    yield
+    os.chdir(currpath)
+
+
+def remove_trailing_newline_from_testcase(case):
+    """
+    Remove a trailing newline from the last output node.
+    """
+
+    if case is None:
+        return None
+
+    if case:
+        last = case[-1]
+        if isinstance(last, types.Out) and last.endswith('\n'):
+            last.data = str(last[:-1])
+    return case
+
+
+def format_traceback(ex, source):
+    """
+    Creates a error message string from an exception with a __traceback__
+    value. Usually this requires that this function must be executed inside
+    the except block that caught the exception.
+    """
+
+    ex_name = type(ex).__name__
+    messages = []
+    code_lines = source.splitlines()
+    tb = ex.__traceback__
+
+    tb_list = reversed(traceback.extract_tb(tb))
+    for (filename, lineno, func_name, text) in tb_list:
+        if 'ejudge' in filename:
+            break
+        if filename == '<string>':
+            text = code_lines[lineno - 1].strip()
+        messages.append((filename, lineno, func_name, text))
+
+    messages.reverse()
+    messages = traceback.format_list(messages)
+    messages.insert(0, 'Traceback (most recent call last)')
+    messages.append('%s: %s' % (ex_name, ex))
+    return '\n'.join(messages)
