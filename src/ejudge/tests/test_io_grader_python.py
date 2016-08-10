@@ -1,6 +1,6 @@
 from pprint import pprint
 import pytest
-from ejudge import io
+from ejudge import functions
 from iospec import parse_string, types
 
 
@@ -39,8 +39,8 @@ def src_bad():
 # Test simple io.run() interactions
 #
 def test_run_valid_source(src_ok, lang, timeout=None, sandbox=False):
-    tree = io.run(src_ok, ['foo'], lang=lang, sandbox=sandbox, timeout=timeout,
-                  raises=True)
+    tree = functions.run(src_ok, ['foo'], lang=lang, sandbox=sandbox, timeout=timeout,
+                         raises=True)
     try:
         assert len(tree) == 1
         case = tree[0]
@@ -71,7 +71,7 @@ def test_run_valid_source_with_sandbox_and_timeout(src_ok, lang):
 # Test io.grade() and check if the feedback is correct
 #
 def test_grade_correct(iospec, src_ok, lang):
-    feedback = io.grade(src_ok, iospec, lang=lang, sandbox=False)
+    feedback = functions.grade(src_ok, iospec, lang=lang, sandbox=False)
     assert isinstance(feedback.answer_key, types.TestCase)
     assert isinstance(feedback.testcase, types.TestCase)
     assert feedback.grade == 1
@@ -80,14 +80,14 @@ def test_grade_correct(iospec, src_ok, lang):
 
 
 def test_grade_wrong(iospec, src_bad, lang):
-    feedback = io.grade(src_bad, iospec, lang=lang, sandbox=False)
+    feedback = functions.grade(src_bad, iospec, lang=lang, sandbox=False)
     assert feedback.grade == 0
     assert feedback.status == 'wrong-answer'
     assert feedback.title == 'Wrong Answer'
 
 
 def test_run_from_input_sequence(src_ok, lang):
-    tree = io.run(src_ok, [['foo'], ['bar']], lang=lang, sandbox=False)
+    tree = functions.run(src_ok, [['foo'], ['bar']], lang=lang, sandbox=False)
     assert len(tree) == 2
     assert tree[0][2] == 'hello foo!'
     assert tree[1][2] == 'hello bar!'
@@ -97,14 +97,14 @@ def test_run_from_iospec_input(src_ok, lang):
     case1 = types.SimpleTestCase([types.In('foo'), types.Out('foo')])
     case2 = types.InputTestCase([types.In('bar')])
     inpt = types.IoSpec ([case1, case2])
-    tree = io.run(src_ok, inpt, lang=lang, sandbox=False)
+    tree = functions.run(src_ok, inpt, lang=lang, sandbox=False)
     assert len(tree) == 2
     assert tree[0][2] == 'hello foo!'
     assert tree[1][2] == 'hello bar!'
 
 
 def test_run_code_with_runtime_error():
-    tree = io.run('1/0', ['foo'], lang='python', sandbox=False)
+    tree = functions.run('1/0', ['foo'], lang='python', sandbox=False)
     lines = tree[0].error_message.splitlines()
     assert lines[0] == 'Traceback (most recent call last)'
     assert lines[1].startswith('  File ')
@@ -112,7 +112,7 @@ def test_run_code_with_runtime_error():
 
 
 def test_run_code_with_syntax_error():
-    tree = io.run('bad syntax', ['foo'], lang='python', sandbox=False)
+    tree = functions.run('bad syntax', ['foo'], lang='python', sandbox=False)
     assert len(tree) == 1
     assert isinstance(tree[0], types.ErrorTestCase)
     # assert tree[0].error_message == (
@@ -126,7 +126,7 @@ def test_run_code_with_syntax_error():
 
 def test_grade_with_runtime_error():
     iospec = parse_string('foo<bar>\nfoobar')
-    feedback = io.grade('1/0', iospec, lang='python', sandbox=False)
+    feedback = functions.grade('1/0', iospec, lang='python', sandbox=False)
     assert feedback.grade == 0
     assert feedback.title == 'Runtime Error'
     assert feedback.testcase.error_message == (
@@ -141,7 +141,7 @@ def f(x):
     return 1 if x <= 1 else x * f(x - 1)
 print(f(5))
 '''
-    result = io.run(src, [()], lang='python', sandbox=False)
+    result = functions.run(src, [()], lang='python', sandbox=False)
     assert list(result[0]) == ['120']
 
 
@@ -151,6 +151,6 @@ def f(x):
     return 1 if x <= 1 else x * f(x - 1)
 print(f(5))
 '''
-    result = io.run(src, [()], lang='python', sandbox=True)
+    result = functions.run(src, [()], lang='python', sandbox=True)
     assert list(result[0]) == ['120']
 

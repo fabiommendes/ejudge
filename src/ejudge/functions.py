@@ -14,7 +14,7 @@ def run(source, inputs, lang=None, *,
         timeout=None, raises=False, path=None, sandbox=True):
     """
     Run program with the given list of inputs and returns the corresponding
-    :cls:`iospec.IoSpec` instance.
+    :cls:`iospec.IoSpec` instance with the results.
 
     Args
         source : str or file
@@ -92,9 +92,10 @@ def grade(source, iospec, lang=None, *,
         iospec : IOSpec parse tree
             The expected template for correct answers.
         lang : str
-            Programming language for the given source code. The judge accepts the
-            following languages. Users can register plugins to support additional
-            languages or to override the default behavior or accepted languages.
+            Programming language for the given source code. The judge accepts
+            the following languages. Users can implement plugins to support
+            additional languages or to override the default behavior or
+            accepted languages.
 
             +===========+======================================================+
             | Value     | Description                                          |
@@ -107,7 +108,7 @@ def grade(source, iospec, lang=None, *,
             +-----------+------------------------------------------------------+
             | clang     | Compile C code with clang                            |
             +-----------+------------------------------------------------------+
-            | gcc ,c    | Compile C code with gcc                              |
+            | gcc, c    | Compile C code with gcc                              |
             +-----------+------------------------------------------------------+
 
         sandbox : bool

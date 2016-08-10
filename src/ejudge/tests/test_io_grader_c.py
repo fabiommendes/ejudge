@@ -1,5 +1,5 @@
 import pytest
-from ejudge import io
+from ejudge import functions
 from iospec import parse_string, types
 from ejudge.tests.test_io_grader_python import (
     iospec,
@@ -56,7 +56,7 @@ void main() {
     printf("%s, %s\n", name, job);
 }
 """
-    result = io.run(src, ['foo', 'bar'], lang='c', sandbox=False)
+    result = functions.run(src, ['foo', 'bar'], lang='c', sandbox=False)
     case = result[0]
     print(case)
     result.pprint()

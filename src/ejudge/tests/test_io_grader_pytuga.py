@@ -1,5 +1,5 @@
 import pytest
-from ejudge import io
+from ejudge import functions
 from ejudge.tests.test_io_grader_python import (
     iospec,
     test_run_valid_source,
@@ -31,5 +31,5 @@ def lang():
 
 
 def test_pytuga_keeps_a_clean_environment(src_ok):
-    io.run(src_ok, ['tuga'], lang='pytuga', sandbox=False)
+    functions.run(src_ok, ['tuga'], lang='pytuga', sandbox=False)
     assert str(True) == 'True'

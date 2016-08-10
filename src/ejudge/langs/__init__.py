@@ -7,7 +7,7 @@ registry.register(
     'ejudge.langs.c_family.GccBuildManager',
     'ejudge.langs.c_family.CLanguageExecutionManager',
     extensions=['.c'],
-    aliases=['gcc']
+    aliases=['gcc', 'C', 'cc']
 )
 registry.register(
     'tcc',
@@ -24,7 +24,7 @@ registry.register(
     'ejudge.langs.c_family.GccCppBuildManager',
     'ejudge.langs.c_family.CLanguageExecutionManager',
     extensions=['.cpp', '.c++'],
-    aliases=['cpp', 'g++']
+    aliases=['cpp', 'g++', 'C++']
 )
 registry.register(
     'clang-c++',

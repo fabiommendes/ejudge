@@ -1,5 +1,5 @@
 import pytest
-from ejudge import io
+from ejudge import functions
 from iospec import parse_string, types
 
 
@@ -9,7 +9,7 @@ from iospec import parse_string, types
 def test_less_inputs_than_expected(lang='python', sandbox=False):
     src = 'print(42)'
     iosrc = 'foo<42>\nbar<0>\n42'
-    fb = io.grade(src, iosrc, lang=lang, sandbox=sandbox)
+    fb = functions.grade(src, iosrc, lang=lang, sandbox=sandbox)
     fb.testcase.pprint()
     fb.answer_key.pprint()
     assert fb.grade == 0
