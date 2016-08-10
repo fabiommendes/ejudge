@@ -1,7 +1,7 @@
 from pprint import pprint
 import pytest
 from ejudge import functions
-from iospec import parse_string, types
+from iospec import parse_string, types, SimpleTestCase
 
 
 @pytest.fixture
@@ -44,7 +44,7 @@ def test_run_valid_source(src_ok, lang, timeout=None, sandbox=False):
     try:
         assert len(tree) == 1
         case = tree[0]
-        assert case.type == 'simple'
+        assert isinstance(case, SimpleTestCase)
         assert case[0] == 'name: '
         assert case[1] == 'foo'
         assert case[2] == 'hello foo!'

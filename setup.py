@@ -1,11 +1,4 @@
 # -*- coding: utf8 -*-
-#
-# This file were created by Python Boilerplate. Use boilerplate to start simple
-# usable and best-practices compliant Python projects.
-#
-# Learn more about it at: http://github.com/fabiommendes/boilerplate/
-#
-
 import os
 
 from setuptools import setup, find_packages
@@ -48,7 +41,7 @@ setup(
     install_requires=[
         'psutil',
         'pexpect',
-        'iospec>=0.2.7',
+        'iospec>=0.3',
         'boxed>=0.3'
     ],
     extras_require={

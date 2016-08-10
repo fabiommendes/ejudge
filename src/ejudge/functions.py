@@ -14,35 +14,35 @@ def run(source, inputs, lang=None, *,
         timeout=None, raises=False, path=None, sandbox=True):
     """
     Run program with the given list of inputs and returns the corresponding
-    :cls:`iospec.IoSpec` instance with the results.
+    :class:`iospec.IoSpec` instance with the results.
 
-    Args
-        source : str or file
+    Args:
+        source (str or file)
             The source code for the test program
-        inputs : sequence
+        inputs (sequence)
             A sequence of input strings. If input is a sequence of sequences,
             this function will perform multiple test cases. It can also be a
             IoSpec or a TestCase instance which are used to extract the
             necessary input strings.
-        lang : str
+        lang (str)
             The name for the source code language. See
             :func:`ejudge.graders.io.grade` for more details.
-        timeout : float
+        timeout (float)
             A time limit for the entire run (in seconds). If this attribute is
             not given, the program will run without any timeout. This can be
             potentially dangerous if the input program has an infinite loop.
-        sandbox : bool
+        sandbox (bool)
             Controls if code is run in sandboxed mode or not. Sandbox protection
             is the default behavior on supported platforms.
-        raises : bool
+        raises (bool)
             If True, raise a BuildError if the build process fails. The default
             behavior is to return a IoSpec instance with a single ErrorTestCase
             with a type string of 'error-build'.
-        path : str
+        path (str)
             The absolute file path for the input string or file object.
 
-    Return
-        A :cls:`iospec.IoSpec` structure. If ``inputs`` is a sequence of
+    Returns:
+        A :class:`iospec.IoSpec` structure. If ``inputs`` is a sequence of
         strings, the resulting tree will have a single test case.
     """
 
@@ -86,18 +86,17 @@ def grade(source, iospec, lang=None, *,
     outputs in the given template structure.
 
 
-    Args
-        source : str or file object
+    Args:
+        source (str or file object)
             The source string for the code or a file object
-        iospec : IOSpec parse tree
+        iospec (IOSpec parse tree)
             The expected template for correct answers.
-        lang : str
-            Programming language for the given source code. The judge accepts
-            the following languages. Users can implement plugins to support
-            additional languages or to override the default behavior or
-            accepted languages.
+        lang (str)
+            Programming language for the given source code. Users can implement
+            plugins to support additional languages or to override the default
+            behavior or accepted languages.
 
-            +===========+======================================================+
+            +-----------+------------------------------------------------------+
             | Value     | Description                                          |
             +===========+======================================================+
             | python    | For Python 3.x code. Default runner.                 |
@@ -111,21 +110,15 @@ def grade(source, iospec, lang=None, *,
             | gcc, c    | Compile C code with gcc                              |
             +-----------+------------------------------------------------------+
 
-        sandbox : bool
+        sandbox (bool)
             If True, code will run in a sandboxed environment as the `nobody`
             user. It is necessary to have your system properly configured in
             order to do this.
-        timeout : float
+        timeout (float)
             Maximum time (in seconds) for the complete test to run.
 
-        Specific languages may support additional keyword arguments. The most
-        common ones are shown bellow
-
-        namespace (python): dict
-            The global namespace used to run a python script.
-
-    Returns
-        A :cls:`ejudge.Feedback` instance.
+    Returns:
+        A :class:`ejudge.Feedback` instance.
     """
 
     build_manager = registry.build_manager_from_path(lang, source, path,
