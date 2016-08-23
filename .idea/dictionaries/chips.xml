@@ -2,6 +2,9 @@
   <dictionary name="chips">
     <words>
       <w>ejudge</w>
+      <w>isequal</w>
+      <w>klass</w>
+      <w>overline</w>
     </words>
   </dictionary>
 </component>
