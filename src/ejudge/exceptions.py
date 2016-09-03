@@ -1,7 +1,11 @@
-class BuildError(Exception):
-    """
-    Exception raised when the build process is unsuccessful.
-    """
+try:
+    # Reuse exception from IoSpec.
+    from iospec.exceptions import BuildError
+except ImportError:
+    class BuildError(Exception):
+        """
+        Exception raised when the build process is unsuccessful.
+        """
 
 
 class MissingInputError(RuntimeError):

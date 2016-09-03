@@ -153,6 +153,14 @@ def keep_cwd():
     os.chdir(currpath)
 
 
+@contextlib.contextmanager
+def do_nothing_context_manager():
+    """
+    A do-nothing context manager.
+    """
+    yield
+
+
 def remove_trailing_newline_from_testcase(case):
     """
     Remove a trailing newline from the last output node.

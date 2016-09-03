@@ -1,19 +1,19 @@
 Supporting other languages
 ==========================
 
-For support for other languages it is necessary to subclass both
+In order to support other languages it is necessary to subclass both
 :class:`ejudge.build_manager.BuildManager`, and :class:`ejudge.execution_manager.ExecutionManager`.
-Ejudge implements subclasses for the common cases of a programming language with a compile-run cycle
-and that of a interpreted/scripting language.
+Ejudge implements subclasses for the common cases of a programming language with
+a compile-run cycle and that of a interpreted/scripting language.
 
 Compiled languages
 ------------------
 
 It is most convenient to subclass :class:`ejudge.build_manager.CompiledLanguageBuildManager`
-and :class:`ejudge.execution_manager.CompiledLanguageExecutionManager`. The first class is
-responsible for building the executable file, which by default should be named
-``main.exe``. The build manager also produces a temporary directory used to
-compile and store the source code.
+and :class:`ejudge.execution_manager.CompiledLanguageExecutionManager`. The
+first class is responsible for building the executable file, which by default
+should be named ``main.exe``. The build manager also produces a temporary
+directory used to compile and store the source code.
 
 Subclass should provide at least the file extension, the compiler command and a
 function to check syntax::

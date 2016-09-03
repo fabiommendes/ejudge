@@ -5,13 +5,14 @@ import traceback
 from boxed.jsonbox import run as run_sandbox
 from ejudge import registry
 from ejudge.exceptions import BuildError
-from ejudge.util import keep_cwd
+from ejudge.util import keep_cwd, do_nothing_context_manager
 from iospec import parse_string, TestCase, ErrorTestCase, IoSpec
 from iospec.feedback import feedback as get_feedback, Feedback
 
 
 def run(source, inputs, lang=None, *,
-        timeout=None, raises=False, path=None, sandbox=True):
+        fast=False, timeout=None, raises=False, path=None, sandbox=True,
+        **kwargs):
     """
     Run program with the given list of inputs and returns the corresponding
     :class:`iospec.IoSpec` instance with the results.
@@ -40,14 +41,12 @@ def run(source, inputs, lang=None, *,
             with a type string of 'error-build'.
         path (str)
             The absolute file path for the input string or file object.
-
+        fast (bool):
+            If true, stops running at the first error.
     Returns:
         A :class:`iospec.IoSpec` structure. If ``inputs`` is a sequence of
         strings, the resulting tree will have a single test case.
     """
-
-    build_manager = registry.build_manager_from_path(lang, source, path,
-                                                     is_sandboxed=sandbox)
 
     # Normalize inputs
     if isinstance(inputs, (IoSpec, TestCase)):
@@ -58,25 +57,77 @@ def run(source, inputs, lang=None, *,
         else:
             inputs = [list(x) for x in inputs]
 
-    # Execute
-    with keep_cwd():
-        if sandbox:
-            imports = build_manager.get_modules()
-            result = run_sandbox(
-                run_from_lang,
-                args=(build_manager.language, build_manager.source, inputs),
-                kwargs={'raises': raises, 'timeout': timeout},
-                imports=imports,
-            )
-            result = IoSpec.from_json(result)
+    # Optional arguments
+    is_sandboxed = kwargs.get('_is_sandboxed', False)
+    return_json = kwargs.get('_return_json', False)
+
+    # Create build manager
+    build_manager = registry.build_manager_from_path(
+        lang, source, path,
+        is_sandboxed=is_sandboxed
+    )
+
+    # Run in sandboxed mode
+    if sandbox:
+        imports = build_manager.get_modules()
+        result = run_sandbox(
+            run,
+            args=(source, inputs, lang),
+            kwargs={
+                'raises': raises,
+                'timeout': timeout,
+                'fast': fast,
+                'path': path,
+                'sandbox': False,
+                '_is_sandboxed': True,
+                '_return_json': True
+            },
+            imports=imports,
+        )
+        return IoSpec.from_json(result)
+
+    # If running inside a sandbox, we must not try to restore the cwd
+    if is_sandboxed:
+        ctx_manager = do_nothing_context_manager()
+    else:
+        ctx_manager = keep_cwd()
+
+    with ctx_manager:
+        # Prepare build manager
+        try:
+            build_manager.build()
+        except BuildError as ex:
+            if raises:
+                raise
+            result = IoSpec([ErrorTestCase.build(error_message=str(ex))])
+            return result.to_json() if return_json else result
+
+        # Run all examples with the execution manager
+        data = []
+        language = build_manager.language
+        for input_strings in inputs:
+            ctrl = registry.execution_manager(language, build_manager,
+                                              input_strings)
+            try:
+                if timeout:
+                    result = ctrl.run()
+                else:
+                    result = ctrl.run_with_timeout(timeout)
+            except Exception as ex:
+                if raises:
+                    raise
+                result = _error_test_case(ex, ex.__traceback__)
+            data.append(result)
+            if fast and result.is_error:
+                break
+
+        # Prepare resulting iospec object
+        result = IoSpec(data)
+        result.set_meta('lang', build_manager.language)
+        if return_json:
+            return result.to_json()
         else:
-            result = run_from_manager(
-                build_manager,
-                inputs,
-                raises=raises,
-                timeout=timeout
-            )
-    return result
+            return result
 
 
 def grade(source, iospec, lang=None, *,
@@ -121,113 +172,25 @@ def grade(source, iospec, lang=None, *,
         A :class:`ejudge.Feedback` instance.
     """
 
-    build_manager = registry.build_manager_from_path(lang, source, path,
-                                                     is_sandboxed=sandbox)
-
-    # Normalize inputs
     if isinstance(iospec, str):
         iospec = parse_string(iospec)
-    if not iospec:
-        raise ValueError('cannot grade an iospec that has no cases')
-
-    with keep_cwd():
-        kwargs = {'raises': raises, 'timeout': timeout, 'fast': fast}
-
-        if sandbox:
-            imports = build_manager.get_modules()
-            language = build_manager.language
-            manager_source = build_manager.source
-            result = run_sandbox(
-                grade_from_lang,
-                args=(language, manager_source, iospec.to_json()),
-                kwargs=kwargs,
-                imports=imports,
-            )
-            result = Feedback.from_json(result)
-        else:
-            result = grade_from_manager(build_manager, iospec, **kwargs)
-    return result
-
-
-def get_answer_key_error(source, iospec, lang, **kwargs):
-    """
-    Compares the results of running the given source code with the given
-    iospec and return the first test case which fails.
-
-    Return None if no test case fails and the answer key is acceptable.
-    """
-
-
-def grade_from_manager(build_manager, iospec, raises, timeout, fast):
-    """
-    Grade manager instance by comparing it to the given iospec.
-    """
-
-    try:
-        build_manager.build()
-        error_message = None
-    except BuildError as ex:
-        if raises:
-            raise
-        error_message = str(ex)
-
-    value = decimal.Decimal(1)
+    result = run(source, iospec, lang, fast=fast, path=path, raises=raises, sandbox=sandbox, timeout=timeout)
     feedback = None
-    language = build_manager.language
+    value = decimal.Decimal(1)
 
-    for answer_key in iospec:
-        # We run each test case and compare results. If there was a build error
-        # and raises is False, we create a new ErrorTestCase for each time
-        # the program is supposed to run.
-        inputs = answer_key.inputs()
-        if error_message:
-            case = ErrorTestCase.build(error_message=error_message)
-        else:
-            ctrl = registry.execution_manager(language, build_manager,
-                                              inputs)
-            try:
-                if timeout:
-                    ctrl.run_with_timeout(timeout)
-                else:
-                    case = ctrl.run()
-            except Exception as ex:
-                case = error_test_case(ex, ex.__traceback__)
-
-            if not isinstance(case, TestCase):
-                raise RuntimeError(
-                    '%s .run() method did not return a TestCase: got a %s '
-                    'instance' % (type(ctrl).__name__,  type(case).__name__),
-                )
-
-        # Compute feedback and compare with worst results
+    for case, answer_key in zip(result, iospec):
         curr_feedback = get_feedback(case, answer_key)
-
         if feedback is None:
             feedback = curr_feedback
-
         if curr_feedback.grade < value:
             feedback = curr_feedback
             value = curr_feedback.grade
-
             if value == 0 and fast:
                 break
-
     return feedback
 
 
-def grade_from_lang(lang, source, iospec, **kwargs):
-    """
-    A version of grade_from_manager() in which both the inputs and outputs
-    can be converted to JSON.
-    """
-
-    iospec = IoSpec.from_json(iospec)
-    build_manager = registry.build_manager(lang, source)
-    result = grade_from_manager(build_manager, iospec, **kwargs)
-    return result.to_json()
-
-
-def error_test_case(exc, tb, limit=None):
+def _error_test_case(exc, tb, limit=None):
     """
     Return an IoSpec data with a single ErrorTestCase.
 
@@ -241,47 +204,3 @@ def error_test_case(exc, tb, limit=None):
                (sep + tail, exc.__class__.__name__, exc))
     return ErrorTestCase.runtime(error_message=message)
 
-
-def run_from_manager(build_manager, input_sets, *, raises, timeout):
-    """
-    Run command from given ExecutionManager.
-    """
-
-    try:
-        build_manager.build()
-    except BuildError as ex:
-        if raises:
-            raise
-        return IoSpec([ErrorTestCase.build(error_message=str(ex))])
-
-    data = []
-    for inputs in input_sets:
-        language = build_manager.language
-        ctrl = registry.execution_manager(language, build_manager, inputs)
-        try:
-            if timeout:
-                result = ctrl.run()
-            else:
-                result = ctrl.run_with_timeout(timeout)
-            data.append(result)
-        except Exception as ex:
-            if raises:
-                raise
-            data.append(error_test_case(ex, ex.__traceback__))
-    result = IoSpec(data)
-    result.set_meta('lang', build_manager.language)
-    return result
-
-
-def run_from_lang(lang, src, inputs, *, raises, timeout):
-    """
-    Calls run_from_manager, but uses only JSON-encodable arguments.
-
-    This function should be used in sandboxed environments.
-    """
-
-    build_manager = registry.build_manager(lang, src, is_sandboxed=True)
-    result = run_from_manager(
-        build_manager, inputs, raises=raises, timeout=timeout
-    )
-    return result.to_json()
