@@ -190,6 +190,23 @@ def grade(source, iospec, lang=None, *,
     return feedback
 
 
+def exec(source, lang=None, path=None):
+    """
+    Execute code in the given language.
+
+    Do not pass any inputs or collect the outputs.
+    """
+
+    # Create build manager
+    build_manager = registry.build_manager_from_path(
+        lang, source, path,
+        is_sandboxed=False,
+    )
+    build_manager.build()
+    ctrl = registry.execution_manager(lang, build_manager)
+    ctrl.run_interactive()
+
+
 def _error_test_case(exc, tb, limit=None):
     """
     Return an IoSpec data with a single ErrorTestCase.

@@ -28,7 +28,10 @@ class ExecutionManager:
 
     def __init__(self, build_manager, inputs=()):
         self.build_manager = build_manager
-        self.inputs = tuple(inputs)
+        if inputs is None:
+            self.inputs = None
+        else:
+            self.inputs = tuple(inputs)
         self.is_started = False
         self.is_closed = False
 
@@ -53,7 +56,7 @@ class ExecutionManager:
 
         if self.is_closed or self.build_manager.is_closed:
             raise RuntimeError(
-                'Program already run. Cannot run it again.'
+                'Program already executed. Cannot run it again.'
             )
         if self.is_started:
             raise RuntimeError(
@@ -64,6 +67,24 @@ class ExecutionManager:
         result = self.interact()
         self.end()
         return remove_trailing_newline_from_testcase(result)
+
+    def run_interactive(self):
+        """
+        Run program asking user for input.
+        """
+
+        if self.is_closed or self.build_manager.is_closed:
+            raise RuntimeError(
+                'Program already executed. Cannot run it again.'
+            )
+        if self.is_started:
+            raise RuntimeError(
+                'Program already started execution. Please create another '
+                'ExecutionManager instance.'
+            )
+        self.start()
+        self.interact_with_user()
+        self.end()
 
     def run_with_timeout(self, timeout):
         """
@@ -77,6 +98,13 @@ class ExecutionManager:
         Interact with the program by using all input strings.
 
         Return a IoSpec.TestCase instance with the results of interaction.
+        """
+
+        raise NotImplementedError
+
+    def interact_with_user(self):
+        """
+        Starts and executes program without storing any inputs.
         """
 
         raise NotImplementedError
@@ -132,6 +160,14 @@ class IntegratedExecutionManager(ExecutionManager):
             builtins_ctrl.restore()
 
         return result
+
+    def interact_with_user(self):
+        if self.build_manager.locals is None:
+            locals_dic = None
+        else:
+            locals_dic = dict(self.build_manager.locals)
+        globals_dic = dict(self.build_manager.globals or {})
+        self.exec(globals_dic, locals_dic)
 
     def interact(self):
         if self.is_sandboxed:
