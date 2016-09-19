@@ -47,6 +47,7 @@ setup(
     extras_require={
         'dev': [
             'pytest',
+            'pytest-coverage',
             'python-boilerplate',
         ],
     },
