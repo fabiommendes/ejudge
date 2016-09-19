@@ -45,7 +45,10 @@ setup(
         'boxed>=0.3'
     ],
     extras_require={
-        'testing': ['pytest'],
+        'dev': [
+            'pytest',
+            'python-boilerplate',
+        ],
     },
 
     # Scripts
@@ -56,5 +59,4 @@ setup(
     # Other configurations
     zip_safe=False,
     platforms='any',
-    test_suite='%s.test.test_%s' % (name, name),
 )
