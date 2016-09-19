@@ -57,12 +57,12 @@ def test_run_valid_source_with_timeout(src_ok, lang):
     test_run_valid_source(src_ok, lang, timeout=1.0)
 
 
-@pytest.mark.slow
+@pytest.mark.sandbox
 def test_run_valid_source_with_sandbox(src_ok, lang):
     test_run_valid_source(src_ok, lang, sandbox=True)
 
 
-@pytest.mark.slow
+@pytest.mark.sandbox
 def test_run_valid_source_with_sandbox_and_timeout(src_ok, lang):
     test_run_valid_source(src_ok, lang, sandbox=True, timeout=1.0)
 
@@ -145,6 +145,7 @@ print(f(5))
     assert list(result[0]) == ['120']
 
 
+@pytest.mark.sandbox
 def test_run_recursive_function_in_sandbox():
     src = '''
 def f(x):

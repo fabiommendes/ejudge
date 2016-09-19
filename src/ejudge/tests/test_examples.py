@@ -16,7 +16,7 @@ def test_less_inputs_than_expected(lang='python', sandbox=False):
     assert fb.status == 'wrong-answer'
 
 
-@pytest.mark.slow
+@pytest.mark.sandbox
 def test_less_inputs_than_expected_sandbox():
     test_less_inputs_than_expected(sandbox=True)
 
