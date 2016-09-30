@@ -1,3 +1,6 @@
+import subprocess
+import tempfile
+
 from ejudge.build_manager import IntegratedBuildManager, \
     InterpretedLanguageBuildManager
 from ejudge.execution_manager import IntegratedExecutionManager, \
@@ -10,6 +13,8 @@ class PythonBuildManager(IntegratedBuildManager):
     """
     Integrated build manager for Python 3.x.
     """
+
+    language = 'python'
 
     def syntax_check(self):
         python3_syntax_check(self.source)
@@ -29,6 +34,7 @@ class PythonScriptBuildManager(InterpretedLanguageBuildManager):
     """
 
     source_extension = '.py'
+    language = 'python-script'
 
     def syntax_check(self):
         python3_syntax_check(self.source)
@@ -49,9 +55,23 @@ class Python2BuildManager(InterpretedLanguageBuildManager):
     """
 
     source_extension = '.py'
+    language = 'python2'
 
     def syntax_check(self):
-        python2_syntax_check(self.source)
+        with tempfile.NamedTemporaryFile(mode='w',
+                                         suffix='.py',
+                                         encoding='utf8',
+                                         delete=False) as F:
+            F.write(self.source)
+            filename = F.name
+
+        check = "f = '%s';compile(open(f).read(), f, 'exec')" % filename
+        try:
+            subprocess.check_output(['python2', '-c', check])
+        except subprocess.CalledProcessError as ex:
+            data = ex.output
+            data = data.decode('utf8')
+            raise SyntaxError(data)
 
 
 class Python2ExecutionManager(InterpretedLanguageExecutionManager):
@@ -62,7 +82,7 @@ class Python2ExecutionManager(InterpretedLanguageExecutionManager):
     interpreter_command = 'python2'
 
 
-# Utilty functions
+# Utility functions
 def python3_syntax_check(source):
     """
     Checks if string of source code is valid Python 3 syntax.
@@ -73,9 +93,3 @@ def python3_syntax_check(source):
     except SyntaxError as ex:
         msg = format_traceback(ex, source)
         raise SyntaxError(msg)
-
-
-def python2_syntax_check(source):
-    """
-    Checks if string of source code is valid Python 2.7 syntax.
-    """

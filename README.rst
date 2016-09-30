@@ -31,7 +31,7 @@ The main entry points in the :mod:`ejudge` module are the :func:`ejudge.run` and
 a set of inputs and collect the resulting IO. The second function runs code and
 compares it with the expected iospec result.
 
->>> from iospec import run
+>>> from ejudge import run
 >>> src = 'print("hello %s!" % input("name: "))'
 >>> inputs = ['john']
 >>> spec = run(src, inputs, lang='python')

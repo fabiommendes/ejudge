@@ -1,7 +1,6 @@
 import os
 import stat
 import tempfile
-
 import subprocess
 
 from ejudge.exceptions import BuildError
@@ -28,6 +27,11 @@ class BuildManager:
         Prepares build for the given context.
         """
 
+        try:
+            self.syntax_check()
+        except SyntaxError as ex:
+            msg = str(ex)
+            raise BuildError(msg)
         self.is_built = True
 
     def close(self):
@@ -49,6 +53,8 @@ class BuildManager:
         Raise a SyntaxError if source code syntax is invalid.
         """
 
+        raise NotImplementedError
+
     def get_modules(self):
         """
         Return a list of additional modules that should be pre-loaded by
@@ -67,7 +73,6 @@ class IntegratedBuildManager(BuildManager):
     symbols to be used during execution.
     """
 
-    # noinspection PyShadowingBuiltins
     def __init__(self, source, locals=None, globals=None, **kwargs):
         super().__init__(source, **kwargs)
         self.locals = locals
@@ -85,7 +90,8 @@ class ExternalProgramBuildManager(BuildManager):
     source_extension = None
 
     def build(self):
-        self.build_path = self.build_tempdir()
+        if not self.build_path:
+            self.build_path = self.build_tempdir()
         self.prepare_files()
         super().build()
 
@@ -104,22 +110,33 @@ class ExternalProgramBuildManager(BuildManager):
                 stat.S_IXOTH | stat.S_IROTH | stat.S_IWOTH |
                 stat.S_IXGRP | stat.S_IRGRP | stat.S_IWGRP
             )
+
+        self.build_path = temp_dir
         return temp_dir
 
     def write(self, path, data):
         """
-        Write contents of the "data" string into the a "path" relative to the
-        working temporary directory.
+        Write contents of the "data" string into the absolute "path".
         """
 
         if self.build_path is None:
             raise RuntimeError('must create temporary directory first!')
 
+        # Path must be inside the working directory. We block accidental writes
+        # on other directories
+        if not path.startswith(self.build_path + os.path.sep):
+            msg = 'cannot write %r: outside build directory %r'
+            msg = msg % (path, self.build_path)
+            raise PermissionError(msg)
+
         full_path = os.path.join(self.build_path, path)
 
-        # Save source and make it readable by everyone
+        # Save source
         with open(full_path, 'w') as F:
             F.write(data)
+
+        # If it is going to run inside a sandbox, we have to give very liberal
+        # permissions
         if self.is_sandboxed:
             os.chmod(full_path, stat.S_IREAD | stat.S_IROTH | stat.S_IRGRP)
 
@@ -128,7 +145,11 @@ class ExternalProgramBuildManager(BuildManager):
         Saves all necessary files to the temporary directory.
         """
 
-        self.write(self.get_source_filename(), self.source)
+        filename = self.get_source_filename(absolute=True)
+        if not os.path.exists(filename):
+            self.write(filename, self.source)
+        else:
+            raise RuntimeError('file already exist: %r' % filename)
 
     def get_source_extension(self):
         """
@@ -142,16 +163,20 @@ class ExternalProgramBuildManager(BuildManager):
             )
         return self.source_extension
 
-    def get_source_filename(self):
+    def get_source_filename(self, absolute=False):
         """
         Return the default source file name.
         """
 
         ext = self.get_source_extension()
         if not ext:
-            return 'main'
+            name = 'main'
         else:
-            return 'main.' + ext.lstrip('.')
+            name = 'main.' + ext.lstrip('.')
+        if absolute:
+            return os.path.join(self.build_path, name)
+        else:
+            return name
 
 
 class CompiledLanguageBuildManager(ExternalProgramBuildManager):
@@ -162,34 +187,38 @@ class CompiledLanguageBuildManager(ExternalProgramBuildManager):
     build_args = None
     executable_name = 'main.exe'
 
-    def prepare_files(self):
-        super().prepare_files()
+    def build(self):
+        super().build()
+        self.is_built = False
+        self.compile_files()
+        self.is_built = True
 
-        # Compile and return
-        current_path = os.getcwd()
-        error_msg = 'compilation is taking too long'
+    def compile_files(self):
         try:
-            os.chdir(self.build_path)
+            source_name = self.get_source_filename(absolute=True)
+            executable_name = os.path.join(self.build_path,
+                                           self.executable_name)
+            assert os.path.exists(source_name)
             build_args = self.get_build_args()
-            error_msg = subprocess.check_output(build_args, timeout=10)
+            subprocess.check_output(build_args,
+                                    stderr=subprocess.STDOUT,
+                                    timeout=10,
+                                    cwd=self.build_path)
 
             # Make executable readable and executable by everyone in sandbox
-            # mode
+            # mode so the `nobody` can execute this file
             if self.is_sandboxed:
                 os.chmod(
-                    self.executable_name,
+                    executable_name,
                     stat.S_IREAD | stat.S_IROTH | stat.S_IRGRP |
                     stat.S_IEXEC | stat.S_IXOTH | stat.S_IXGRP
                 )
-
-        except (subprocess.CalledProcessError, TimeoutError):
+        except TimeoutError:
+            error_msg = 'compilation is taking too long'
             raise BuildError(error_msg)
-        finally:
-            # Cannot return to path in sandboxed mode since the nobody user
-            # probably does not have read permissions on the old working
-            # directory
-            if not self.is_sandboxed:
-                os.chdir(current_path)
+        except subprocess.CalledProcessError as ex:
+            error_msg = ex.output.decode('utf8')
+            raise BuildError(error_msg)
 
     def get_build_args(self):
         """

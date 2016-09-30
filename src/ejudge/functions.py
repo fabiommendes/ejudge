@@ -6,8 +6,8 @@ from boxed.jsonbox import run as run_sandbox
 from ejudge import registry
 from ejudge.exceptions import BuildError
 from ejudge.util import keep_cwd, do_nothing_context_manager
-from iospec import parse_string, TestCase, ErrorTestCase, IoSpec
-from iospec.feedback import feedback as get_feedback, Feedback
+from iospec import parse as ioparse, TestCase, ErrorTestCase, IoSpec
+from iospec.feedback import feedback as get_feedback
 
 
 def run(source, inputs, lang=None, *,
@@ -173,8 +173,9 @@ def grade(source, iospec, lang=None, *,
     """
 
     if isinstance(iospec, str):
-        iospec = parse_string(iospec)
-    result = run(source, iospec, lang, fast=fast, path=path, raises=raises, sandbox=sandbox, timeout=timeout)
+        iospec = ioparse(iospec)
+    result = run(source, iospec, lang, fast=fast, path=path, raises=raises,
+                 sandbox=sandbox, timeout=timeout)
     feedback = None
     value = decimal.Decimal(1)
 
@@ -220,4 +221,3 @@ def _error_test_case(exc, tb, limit=None):
     message = ('Traceback (most recent call last)\n%s%s: %s' %
                (sep + tail, exc.__class__.__name__, exc))
     return ErrorTestCase.runtime(error_message=message)
-

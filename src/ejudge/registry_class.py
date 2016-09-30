@@ -46,6 +46,18 @@ class LanguageRegistry:
             self._execution_managers[alias] = execution
             self._build_managers[alias] = build
 
+    def build_manager_class(self, language):
+        """
+        Return the BuildManager subclass associated with the given language.
+        """
+
+        manager_class = self._build_managers[language]
+        if isinstance(manager_class, str):
+            mod_name, _, manager_name = manager_class.rpartition('.')
+            mod = importlib.import_module(mod_name)
+            manager_class = getattr(mod, manager_name)
+        return manager_class
+
     def build_manager(self, language, source, **kwargs):
         """
         Return a build manager instance for the given language string.
@@ -54,14 +66,8 @@ class LanguageRegistry:
         passed to this function to the class constructor.
         """
 
-        manager = self._build_managers[language]
-
-        if isinstance(manager, str):
-            mod_name, _, manager_name = manager.rpartition('.')
-            mod = importlib.import_module(mod_name)
-            manager = getattr(mod, manager_name)
-
-        manager = manager(source, **kwargs)
+        manager_class = self.build_manager_class(language)
+        manager = manager_class(source, **kwargs)
         manager.language = language
         return manager
 

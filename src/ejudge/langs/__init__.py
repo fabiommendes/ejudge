@@ -27,7 +27,7 @@ registry.register(
     aliases=['cpp', 'g++', 'C++']
 )
 registry.register(
-    'clang-c++',
+    'clang++',
     'ejudge.langs.c_family.ClangCppBuildManager',
     'ejudge.langs.c_family.CLanguageExecutionManager',
     aliases=['clang++']

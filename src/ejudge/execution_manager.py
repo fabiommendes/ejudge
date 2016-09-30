@@ -2,6 +2,7 @@ import functools
 import io
 import multiprocessing
 import os
+import subprocess
 import sys
 
 from boxed.pinteract import Pinteract
@@ -257,6 +258,14 @@ class PInteractExecutionManager(ExecutionManager):
     def interact(self):
         return self.run_pinteract(self.get_shell_args())
 
+    def interact_with_user(self):
+        os.chdir(self.build_manager.build_path)
+        try:
+            shell_args = self.get_shell_args()
+            subprocess.check_call(shell_args)
+        except subprocess.CalledProcessError as ex:
+            raise RuntimeError('%r executed with error: %s' % (shell_args, ex))
+
     def run_pinteract(self, shell_args):
         """
         Run script as a subprocess and gather results of execution.
@@ -301,7 +310,7 @@ class PInteractExecutionManager(ExecutionManager):
                         msg = ('process closed with consuming all inputs. '
                                'List of unused inputs:\n')
 
-                        return ErrorTestCase.earlytermination(
+                        return ErrorTestCase.runtime(
                             list(result),
                             error_message=msg + '\n' + missing_str
                         )
