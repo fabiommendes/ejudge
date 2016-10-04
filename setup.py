@@ -52,8 +52,8 @@ setup(
     install_requires=[
         'psutil',
         'pexpect',
-        'iospec>=0.3',
-        'boxed>=0.3'
+        'iospec>=0.3.5',
+        'boxed>=0.3.4'
     ],
     extras_require={
         'dev': [

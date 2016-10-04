@@ -180,6 +180,10 @@ def grade(source, iospec, lang=None, *,
     value = decimal.Decimal(1)
 
     for case, answer_key in zip(result, iospec):
+        answer_key = answer_key.copy()
+        answer_key.normalize()
+        case.normalize()
+        
         curr_feedback = get_feedback(case, answer_key)
         if feedback is None:
             feedback = curr_feedback

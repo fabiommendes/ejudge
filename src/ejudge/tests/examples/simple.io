@@ -17,7 +17,7 @@
 --> "result: bc"
 
 # Since the colon character ":" may appear so frequently in input
-# prompts, we also accept the double collon "::" syntax
+# prompts, we also accept the double colon "::" syntax
 self:: foo
 y:: bar
 --> "result: foobar"

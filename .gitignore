@@ -9,7 +9,16 @@ __pycache__/
 *.egg-info/
 
 # Build directories
-.tox/
-doc/_build/
+docs/_build/
 build/
 dist/
+
+# Python-boilerplate auto generated files
+src/ejudge/__meta__.py
+
+# IDEs
+.idea/
+
+# Testing and temporary files
+.tox/
+.coverage

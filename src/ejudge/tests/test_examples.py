@@ -1,11 +1,22 @@
 import pytest
+
+import iospec
 from ejudge import functions
-from iospec import parse, types
+
+simple_inputs = """
+<foo>
+<bar>
+<baz>
+foo bar baz
+"""
+
+simple_source = """
+x, y, z = input(), input(), input()
+print(x, y, z)
+"""
 
 
-#
-# Prevent regressions by registering specific interaction bugs
-#
+# Program uses less inputs than predicted on iospec file
 def test_less_inputs_than_expected(lang='python', sandbox=False):
     src = 'print(42)'
     iosrc = (
@@ -27,3 +38,21 @@ def test_less_inputs_than_expected_sandbox():
 
 def test_less_inputs_than_expected_pytuga():
     test_less_inputs_than_expected(lang='pytuga')
+
+
+# Simple inputs with out the corresponding output interaction
+def test_simple_inputs():
+    ast = iospec.parse(simple_inputs)
+    ast.normalize()
+    result = functions.run(simple_source, ast, lang='python')
+    result.normalize()
+    ast.pprint()
+    result.pprint()
+    assert ast.to_json() == result.to_json()
+    assert iospec.isequal(ast, result)
+
+
+def test_grade_simple_inputs():
+    ast = iospec.parse(simple_inputs)
+    feedback = functions.grade(simple_source, ast, lang='python')
+    assert feedback.grade == 1

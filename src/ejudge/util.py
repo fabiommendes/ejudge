@@ -10,7 +10,7 @@ from threading import Thread
 #
 # Special IO functions for python script interactions
 #
-from iospec import types
+from iospec import datatypes
 
 _print_func = print
 _stdout = sys.stdout
@@ -171,7 +171,7 @@ def remove_trailing_newline_from_testcase(case):
 
     if case:
         last = case[-1]
-        if isinstance(last, types.Out) and last.endswith('\n'):
+        if isinstance(last, datatypes.Out) and last.endswith('\n'):
             last.data = str(last[:-1])
     return case
 

@@ -10,7 +10,7 @@ from ejudge import builtins_ctrl
 from ejudge.exceptions import MissingInputError
 from ejudge.util import remove_trailing_newline_from_testcase, \
     timeout as run_with_timeout, format_traceback
-from iospec import Out, In, types, SimpleTestCase, ErrorTestCase
+from iospec import Out, In, datatypes, SimpleTestCase, ErrorTestCase
 
 
 class ExecutionManager:
@@ -281,7 +281,7 @@ class PInteractExecutionManager(ExecutionManager):
         def append_non_empty_output():
             data = process.receive()
             if data:
-                result.append(types.Out(data))
+                result.append(datatypes.Out(data))
 
         # Execute script in the tempdir and than go back once execution has
         # finished
@@ -297,7 +297,7 @@ class PInteractExecutionManager(ExecutionManager):
             for idx, inpt in enumerate(self.inputs):
                 try:
                     process.send(inpt)
-                    result.append(types.In(inpt))
+                    result.append(datatypes.In(inpt))
                 except RuntimeError as ex:
                     # Early termination: we still have to decide if an specific
                     # early termination error should exist.

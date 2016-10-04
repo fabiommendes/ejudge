@@ -1,7 +1,7 @@
 import pytest
 
 from ejudge import functions, registry
-from iospec import parse as parse_string, types, SimpleTestCase
+from iospec import parse as parse_string, datatypes, SimpleTestCase
 from iospec.exceptions import BuildError
 
 
@@ -119,9 +119,9 @@ class TestLanguageSupport:
         assert tree[1][2] == 'hello bar!'
 
     def test_run_valid_source_from_iospec_input(self, src_ok, lang):
-        case1 = types.SimpleTestCase([types.In('foo'), types.Out('foo')])
-        case2 = types.InputTestCase([types.In('bar')])
-        inpt = types.IoSpec([case1, case2])
+        case1 = datatypes.SimpleTestCase([datatypes.In('foo'), datatypes.Out('foo')])
+        case2 = datatypes.InputTestCase([datatypes.In('bar')])
+        inpt = datatypes.IoSpec([case1, case2])
         tree = functions.run(src_ok, inpt, lang=lang, sandbox=False)
         assert len(tree) == 2
         assert tree[0][2] == 'hello foo!'
@@ -130,7 +130,7 @@ class TestLanguageSupport:
     def test_run_code_with_syntax_error(self, src_syntax, lang):
         ast = functions.run(src_syntax, ['foo'], lang=lang, sandbox=False)
         assert len(ast) == 1
-        assert isinstance(ast[0], types.ErrorTestCase)
+        assert isinstance(ast[0], datatypes.ErrorTestCase)
         assert ast[0].error_type == 'build'
 
     def test_run_recursive_function(self, src_recursive, lang):
@@ -147,8 +147,8 @@ class TestLanguageSupport:
     #
     def test_valid_source_receives_maximum_grade(self, iospec, src_ok, lang):
         feedback = functions.grade(src_ok, iospec, lang=lang, sandbox=False)
-        assert isinstance(feedback.answer_key, types.TestCase)
-        assert isinstance(feedback.testcase, types.TestCase)
+        assert isinstance(feedback.answer_key, datatypes.TestCase)
+        assert isinstance(feedback.testcase, datatypes.TestCase)
         assert feedback.grade == 1
         assert feedback.message is None
         assert feedback.status == 'ok'
