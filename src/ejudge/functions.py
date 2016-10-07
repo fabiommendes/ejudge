@@ -52,19 +52,19 @@ def run(source, inputs, lang=None, *,
     if isinstance(inputs, (IoSpec, TestCase)):
         inputs = inputs.inputs()
     else:
-        if isinstance(inputs[0], str):
+        if inputs and isinstance(inputs[0], str):
             inputs = [list(inputs)]
         else:
-            inputs = [list(x) for x in inputs]
+            inputs = [list(map(str, x)) for x in inputs]
 
     # Optional arguments
-    is_sandboxed = kwargs.get('_is_sandboxed', False)
+    running_in_sandbox = kwargs.get('_running_in_sandbox', False)
     return_json = kwargs.get('_return_json', False)
 
     # Create build manager
     build_manager = registry.build_manager_from_path(
         lang, source, path,
-        is_sandboxed=is_sandboxed
+        is_sandboxed=running_in_sandbox
     )
 
     # Run in sandboxed mode
@@ -79,55 +79,50 @@ def run(source, inputs, lang=None, *,
                 'fast': fast,
                 'path': path,
                 'sandbox': False,
-                '_is_sandboxed': True,
+                '_running_in_sandbox': True,
                 '_return_json': True
             },
             imports=imports,
         )
         return IoSpec.from_json(result)
 
-    # If running inside a sandbox, we must not try to restore the cwd
-    if is_sandboxed:
-        ctx_manager = do_nothing_context_manager()
-    else:
-        ctx_manager = keep_cwd()
+    # Prepare build manager
+    try:
+        build_manager.build()
+    except BuildError as ex:
+        if raises:
+            raise
+        result = IoSpec([ErrorTestCase.build(error_message=str(ex))])
+        return result.to_json() if return_json else result
 
-    with ctx_manager:
-        # Prepare build manager
+    # Run all examples with the execution manager
+    data = []
+    language = build_manager.language
+    for input_strings in inputs:
+        ctrl = registry.execution_manager(language, build_manager,
+                                          input_strings)
         try:
-            build_manager.build()
-        except BuildError as ex:
+            if timeout is None:
+                result = ctrl.run()
+            elif timeout > 0:
+                result = ctrl.run_with_timeout(timeout)
+            else:
+                raise ValueError('timeout must be positive, got: %s' % timeout)
+        except Exception as ex:
             if raises:
                 raise
-            result = IoSpec([ErrorTestCase.build(error_message=str(ex))])
-            return result.to_json() if return_json else result
+            result = _error_test_case(ex, ex.__traceback__)
+        data.append(result)
+        if fast and result.is_error:
+            break
 
-        # Run all examples with the execution manager
-        data = []
-        language = build_manager.language
-        for input_strings in inputs:
-            ctrl = registry.execution_manager(language, build_manager,
-                                              input_strings)
-            try:
-                if timeout:
-                    result = ctrl.run()
-                else:
-                    result = ctrl.run_with_timeout(timeout)
-            except Exception as ex:
-                if raises:
-                    raise
-                result = _error_test_case(ex, ex.__traceback__)
-            data.append(result)
-            if fast and result.is_error:
-                break
-
-        # Prepare resulting iospec object
-        result = IoSpec(data)
-        result.set_meta('lang', build_manager.language)
-        if return_json:
-            return result.to_json()
-        else:
-            return result
+    # Prepare resulting iospec object
+    result = IoSpec(data)
+    result.set_meta('lang', build_manager.language)
+    if return_json:
+        return result.to_json()
+    else:
+        return result
 
 
 def grade(source, iospec, lang=None, *,
@@ -183,14 +178,14 @@ def grade(source, iospec, lang=None, *,
         answer_key = answer_key.copy()
         answer_key.normalize()
         case.normalize()
-        
+
         curr_feedback = get_feedback(case, answer_key)
         if feedback is None:
             feedback = curr_feedback
         if curr_feedback.grade < value:
             feedback = curr_feedback
             value = curr_feedback.grade
-            if value == 0 and fast:
+            if value == 0:
                 break
     return feedback
 

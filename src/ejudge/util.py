@@ -68,7 +68,7 @@ def timeout(func, args=(), kwargs={}, timeout=1.0, threading=True, raises=True):
 
         thread = Thread(target=target)
         thread.start()
-        thread.join(timeout)
+        thread.join(timeout=timeout)
         if thread.is_alive():
             if raises:
                 raise TimeoutError

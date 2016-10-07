@@ -8,20 +8,31 @@ sources = r"""
 name = input("name: ")
 print("hello %s!" % name)
 
+
 ## wrong
 name = input("name: ")
 print(name)
 
+
 ## syntax
 a b
 
+
 ## error
 1 / 0
+
 
 ## recursive
 def f(x):
     return 1 if x <= 1 else x * f(x - 1)
 print(f(5))
+
+
+## timeout
+import time
+
+name = input('name: ')
+time.sleep(0.5)  # semi-infinite loop :)
 """
 
 
@@ -38,3 +49,9 @@ class TestPythonSupport(base.TestLanguageSupport):
             'Traceback (most recent call last)\n'
             '  File "main.py", line 1, in <module>\n\n'
             'ZeroDivisionError: division by zero')
+
+    def test_raises_timeout_error(self, lang, iospec):
+        src = self.get_source('timeout')
+        result = functions.run(src, iospec, lang=lang, timeout=0.1,
+                                   sandbox=False)
+        assert result.get_error_type() == 'timeout'

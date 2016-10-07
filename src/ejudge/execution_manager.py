@@ -92,7 +92,10 @@ class ExecutionManager:
         Run execution with a given timeout.
         """
 
-        return run_with_timeout(self.run, timeout=timeout)
+        try:
+            return run_with_timeout(self.run, timeout=timeout)
+        except TimeoutError:
+            return ErrorTestCase.timeout()
 
     def interact(self):
         """
