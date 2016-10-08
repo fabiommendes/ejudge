@@ -1,4 +1,5 @@
 import pytest
+import time
 
 from ejudge import functions
 from ejudge.tests import abstract as base
@@ -32,7 +33,11 @@ print(f(5))
 import time
 
 name = input('name: ')
-time.sleep(0.5)  # semi-infinite loop :)
+t0 = time.time()
+
+# semi-infinite loop :)
+while time.time() < t0 + 0.5:
+    pass
 """
 
 
@@ -52,6 +57,14 @@ class TestPythonSupport(base.TestLanguageSupport):
 
     def test_raises_timeout_error(self, lang, iospec):
         src = self.get_source('timeout')
-        result = functions.run(src, iospec, lang=lang, timeout=0.1,
-                                   sandbox=False)
+        t0 = time.time()
+        result = functions.run(src, iospec, lang=lang, timeout=0.1, sandbox=False)
+        dt = time.time() - t0
+        assert result.get_error_type() == 'timeout'
+        assert dt < 0.45  # slightly less than maximum program runtime
+
+    @pytest.mark.sandbox
+    def test_raises_timeout_error_in_sandbox(self, lang, iospec):
+        src = self.get_source('timeout')
+        result = functions.run(src, iospec, lang=lang, timeout=0.05, sandbox=True)
         assert result.get_error_type() == 'timeout'

@@ -83,6 +83,7 @@ def run(source, inputs, lang=None, *,
                 '_return_json': True
             },
             imports=imports,
+            timeout=None,
         )
         return IoSpec.from_json(result)
 

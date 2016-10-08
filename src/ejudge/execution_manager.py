@@ -220,7 +220,7 @@ class IntegratedExecutionManager(ExecutionManager):
         The default implementation just replaces the builtin print() and input()
         functions.
         """
-        consumed_inputs = list(self.inputs)[::-1]
+        consumed_inputs = list(reversed(self.inputs))
 
         @functools.wraps(self.__print)
         def print(*args, sep=' ', end='\n', file=None, flush=False):
