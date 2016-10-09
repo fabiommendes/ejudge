@@ -68,3 +68,13 @@ class TestPythonSupport(base.TestLanguageSupport):
         src = self.get_source('timeout')
         result = functions.run(src, iospec, lang=lang, timeout=0.05, sandbox=True)
         assert result.get_error_type() == 'timeout'
+
+    def test_compare_streams(self, lang, iospec):
+        src = (
+            'name = input()\n'
+            'print("name: hello %s!" % name)'
+        )
+        fb = functions.grade(src, iospec, lang=lang, compare_streams=True)
+        fb.testcase.pprint()
+        fb.answer_key.pprint()
+        assert fb.is_correct

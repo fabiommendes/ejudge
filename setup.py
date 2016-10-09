@@ -52,6 +52,7 @@ setup(
     install_requires=[
         'psutil',
         'pexpect',
+        'lazyutils',
         'iospec>=0.3.5',
         'boxed>=0.3.4'
     ],

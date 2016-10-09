@@ -15,10 +15,12 @@ class BuildManager:
     def from_json(cls, json):
         return cls(**json)
 
-    def __init__(self, source, is_sandboxed=False, modules=None):
+    def __init__(self, source, is_sandboxed=False, modules=None,
+                 compare_streams=None):
         self.source = source
         self.modules = modules
         self.is_sandboxed = is_sandboxed
+        self.compare_streams = compare_streams
         self.is_built = False
         self.is_closed = False
 

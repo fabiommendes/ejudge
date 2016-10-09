@@ -1,7 +1,8 @@
 import pytest
 
 from ejudge import functions, registry
-from iospec import parse as parse_string, datatypes, SimpleTestCase
+from iospec import parse as parse_string, datatypes, SimpleTestCase, \
+    ErrorTestCase
 from iospec.exceptions import BuildError
 
 
@@ -64,6 +65,10 @@ class TestLanguageSupport:
     def ex_manager_cls(self, lang):
         return registry.execution_manager_class(lang)
 
+    @pytest.fixture(params=[True, False])
+    def compare_streams(self, request):
+        return request.param
+
     #
     # Auxiliary functions
     #
@@ -109,6 +114,8 @@ class TestLanguageSupport:
 
     def test_run_source_with_runtime_error(self, src_error, lang):
         tree = functions.run(src_error, ['foo'], lang=lang, sandbox=False)
+        tree.pprint()
+        assert isinstance(tree[0], ErrorTestCase)
         assert tree[0].error_type == 'runtime'
 
     def test_run_from_input_sequence(self, src_ok, lang):
@@ -145,16 +152,21 @@ class TestLanguageSupport:
     #
     # Test grading and check if the feedback is correct
     #
-    def test_valid_source_receives_maximum_grade(self, iospec, src_ok, lang):
-        feedback = functions.grade(src_ok, iospec, lang=lang, sandbox=False)
+    def test_valid_source_receives_maximum_grade(self, iospec, src_ok, lang,
+                                                 compare_streams):
+        feedback = functions.grade(src_ok, iospec, lang=lang, sandbox=False,
+                                   compare_streams=compare_streams)
+        feedback.pprint()
         assert isinstance(feedback.answer_key, datatypes.TestCase)
         assert isinstance(feedback.testcase, datatypes.TestCase)
         assert feedback.grade == 1
         assert feedback.message is None
         assert feedback.status == 'ok'
 
-    def test_wrong_source_receives_null_grade(self, iospec, src_wrong, lang):
-        feedback = functions.grade(src_wrong, iospec, lang=lang, sandbox=False)
+    def test_wrong_source_receives_null_grade(self, iospec, src_wrong, lang,
+                                              compare_streams):
+        feedback = functions.grade(src_wrong, iospec, lang=lang, sandbox=False,
+                                   compare_streams=compare_streams)
         assert feedback.grade == 0
         assert feedback.status == 'wrong-answer'
         assert feedback.title == 'Wrong Answer'

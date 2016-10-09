@@ -5,7 +5,9 @@ import os
 import subprocess
 import sys
 
+from lazyutils import delegate_to
 from boxed.pinteract import Pinteract
+
 from ejudge import builtins_ctrl
 from ejudge.exceptions import MissingInputError
 from ejudge.util import remove_trailing_newline_from_testcase, \
@@ -24,8 +26,16 @@ class ExecutionManager:
             A list of lists of input strings.
     """
 
-    source = property(lambda self: self.build_manager.source)
-    is_sandboxed = property(lambda self: self.build_manager.is_sandboxed)
+    source = delegate_to('build_manager')
+    is_sandboxed = delegate_to('build_manager')
+    default_compare_streams = False
+
+    @property
+    def compare_streams(self):
+        if self.build_manager.compare_streams is None:
+            return self.default_compare_streams
+        else:
+            return self.build_manager.compare_streams
 
     def __init__(self, build_manager, inputs=()):
         self.build_manager = build_manager
@@ -67,6 +77,8 @@ class ExecutionManager:
         self.start()
         result = self.interact()
         self.end()
+        if self.compare_streams:
+            result.normalize(stream=True)
         return remove_trailing_newline_from_testcase(result)
 
     def run_interactive(self):
@@ -257,9 +269,13 @@ class PInteractExecutionManager(ExecutionManager):
     """
 
     shell_args = None
+    default_compare_streams = True
 
     def interact(self):
-        return self.run_pinteract(self.get_shell_args())
+        if self.compare_streams:
+            return self.run_popen(self.get_shell_args())
+        else:
+            return self.run_pinteract(self.get_shell_args())
 
     def interact_with_user(self):
         os.chdir(self.build_manager.build_path)
@@ -289,51 +305,76 @@ class PInteractExecutionManager(ExecutionManager):
         # Execute script in the tempdir and than go back once execution has
         # finished
         result = SimpleTestCase()
-        current_dir = os.getcwd()
 
-        try:
-            os.chdir(self.build_manager.build_path)
-            process = Pinteract(shell_args)
+        # os.chdir(self.build_manager.build_path)
+        process = Pinteract(shell_args, cwd=self.build_manager.build_path)
 
-            # Fetch all In/Out strings
-            append_non_empty_output()
-            for idx, inpt in enumerate(self.inputs):
-                try:
-                    process.send(inpt)
-                    result.append(datatypes.In(inpt))
-                except RuntimeError as ex:
-                    # Early termination: we still have to decide if an specific
-                    # early termination error should exist.
-                    #
-                    # The default behavior is just to send a truncated
-                    # IoTestCase
-                    if process.is_dead():
-                        missing = self.inputs[idx:]
-                        missing_str = '\n'.join('    ' + x for x in missing)
-                        msg = ('process closed with consuming all inputs. '
-                               'List of unused inputs:\n')
+        # Fetch all In/Out strings
+        append_non_empty_output()
+        for idx, inpt in enumerate(self.inputs):
+            try:
+                process.send(inpt)
+                result.append(datatypes.In(inpt))
+            except RuntimeError as ex:
+                # Early termination: we still have to decide if an specific
+                # early termination error should exist.
+                #
+                # The default behavior is just to send a truncated
+                # IoTestCase
+                if process.is_dead():
+                    missing = self.inputs[idx:]
+                    missing_str = '\n'.join('    ' + x for x in missing)
+                    msg = (
+                        'Error: Process closed without consuming all '
+                        'inputs.\n'
+                        'List of unused inputs:\n'
+                    ) + missing_str
 
-                        return ErrorTestCase.runtime(
-                            list(result),
-                            error_message=msg + '\n' + missing_str
-                        )
-
-                    # This clause is just a safeguard. We don't expect to ever
-                    # get here
                     return ErrorTestCase.runtime(
                         list(result),
-                        error_message='An internal error occurred while trying '
-                                      'to interact with the script: %s.' % ex
+                        error_message=msg
                     )
-                append_non_empty_output()
-        finally:
-            if not self.is_sandboxed:
-                os.chdir(current_dir)
+
+                # This clause is just a safeguard. We don't expect to ever
+                # get here
+                return ErrorTestCase.runtime(
+                    list(result),
+                    error_message='An internal error occurred while trying '
+                                  'to interact with the script: %s.' % ex
+                )
+            append_non_empty_output()
 
         # Finish process
         error_ = process.finish()
         assert not any(error_), error_
         return result
+
+    #TODO: still buggy!
+    def run_popen(self, shell_args):
+        """
+        Run script as a subprocess and gather results of execution.
+
+        Collect only the raw stdin and stdout streams.
+        """
+
+        print('using popen')
+        inputs = '\n'.join(self.inputs)
+        process = subprocess.Popen(shell_args,
+                                   cwd=self.build_manager.build_path,
+                                   universal_newlines=True,
+                                   stderr=subprocess.STDOUT,
+                                   stdin=subprocess.PIPE,
+                                   stdout=subprocess.PIPE)
+        result, err = process.communicate(inputs)
+
+        if result.endswith('\n'):
+            result = result[:-1]
+        atoms = [In(x) for x in self.inputs]
+        atoms.append(Out(result))
+        if process.poll() == 0:
+            return SimpleTestCase(atoms)
+        else:
+            return ErrorTestCase.runtime(atoms)
 
     def get_shell_args(self):
         """
@@ -348,7 +389,9 @@ class PInteractExecutionManager(ExecutionManager):
         if isinstance(self.shell_args, str):
             import shlex
             return shlex.split(self.shell_args)
-        return list(self.shell_args)
+        format_dict = {'build_path': self.build_manager.build_path}
+        args = list(self.shell_args)
+        return [arg % format_dict for arg in args]
 
 
 class CompiledLanguageExecutionManager(PInteractExecutionManager):
@@ -359,7 +402,7 @@ class CompiledLanguageExecutionManager(PInteractExecutionManager):
     the build directory.
     """
 
-    shell_args = ['./main.exe']
+    shell_args = ['%(build_path)s/main.exe']
 
 
 class InterpretedLanguageExecutionManager(PInteractExecutionManager):

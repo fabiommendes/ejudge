@@ -31,9 +31,13 @@ int main(void) {
 a b
 
 ## error
+#include<stdio.h>
+
 int main(void) {
-    char buffer[10];
-    char c = buffer[1000];
+    int x[1];
+    printf("bad\n");
+    printf("x: %d\n", x[1000]);
+    return 1;
 }
 
 
@@ -85,6 +89,23 @@ class TestGCCSupport(base.TestLanguageSupport):
         print(result.to_json())
         result.pprint()
         assert list(case) == ['name: ', 'foo', 'job: ', 'bar', 'foo, bar']
+
+    def test_run_with_compare_streams(self, src_ok):
+        obj = functions.run(src_ok, ['john'], lang='c', compare_streams=True,
+                            sandbox=False)
+        case = obj[0]
+        case.pprint()
+        assert len(case) == 2
+        assert case[0] == 'john'
+        assert case[1] == 'name: hello john!'
+
+    def test_run_bad_program_with_compare_streams(self, src_error):
+        obj = functions.run(src_error, ['john'], lang='c', compare_streams=True,
+                            sandbox=False)
+        case = obj[0]
+        case.pprint()
+        assert len(case) == 2
+        assert case.error_type == 'runtime'
 
 
 @pytest.mark.c

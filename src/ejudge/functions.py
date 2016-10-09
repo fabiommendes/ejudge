@@ -12,7 +12,7 @@ from iospec.feedback import feedback as get_feedback
 
 def run(source, inputs, lang=None, *,
         fast=False, timeout=None, raises=False, path=None, sandbox=True,
-        **kwargs):
+        compare_streams=False, **kwargs):
     """
     Run program with the given list of inputs and returns the corresponding
     :class:`iospec.IoSpec` instance with the results.
@@ -43,6 +43,9 @@ def run(source, inputs, lang=None, *,
             The absolute file path for the input string or file object.
         fast (bool):
             If true, stops running at the first error.
+        compare_streams:
+            If True, collect only the raw stdin and stdout streams. The default
+            behavior is trying to collect fine-grained interactions.
     Returns:
         A :class:`iospec.IoSpec` structure. If ``inputs`` is a sequence of
         strings, the resulting tree will have a single test case.
@@ -64,7 +67,8 @@ def run(source, inputs, lang=None, *,
     # Create build manager
     build_manager = registry.build_manager_from_path(
         lang, source, path,
-        is_sandboxed=running_in_sandbox
+        is_sandboxed=running_in_sandbox,
+        compare_streams=compare_streams,
     )
 
     # Run in sandboxed mode
@@ -127,7 +131,8 @@ def run(source, inputs, lang=None, *,
 
 
 def grade(source, iospec, lang=None, *,
-          fast=True, path=None, raises=False, sandbox=False, timeout=None):
+          fast=True, path=None, raises=False, sandbox=False, timeout=None,
+          compare_streams=False):
     """
     Grade the string of source code by comparing the results of all inputs and
     outputs in the given template structure.
@@ -170,25 +175,10 @@ def grade(source, iospec, lang=None, *,
 
     if isinstance(iospec, str):
         iospec = ioparse(iospec)
-    result = run(source, iospec, lang, fast=fast, path=path, raises=raises,
-                 sandbox=sandbox, timeout=timeout)
-    feedback = None
-    value = decimal.Decimal(1)
-
-    for case, answer_key in zip(result, iospec):
-        answer_key = answer_key.copy()
-        answer_key.normalize()
-        case.normalize()
-
-        curr_feedback = get_feedback(case, answer_key)
-        if feedback is None:
-            feedback = curr_feedback
-        if curr_feedback.grade < value:
-            feedback = curr_feedback
-            value = curr_feedback.grade
-            if value == 0:
-                break
-    return feedback
+    kwargs = locals()
+    kwargs['inputs'] = kwargs.pop('iospec')
+    result = run(**kwargs)
+    return get_feedback(result, iospec, stream=compare_streams)
 
 
 def exec(source, lang=None, path=None):
