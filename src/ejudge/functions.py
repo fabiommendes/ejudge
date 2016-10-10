@@ -86,6 +86,7 @@ def run(source, inputs, lang=None, *,
                 'fast': fast,
                 'path': path,
                 'sandbox': False,
+                'compare_streams': compare_streams,
                 '_running_in_sandbox': True,
                 '_return_json': True
             },

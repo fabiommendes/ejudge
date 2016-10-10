@@ -5,11 +5,11 @@ import multiprocessing
 import os
 import subprocess
 import sys
-
 import time
-from lazyutils import delegate_to
-from boxed.pinteract import Pinteract
 
+from lazyutils import delegate_to
+
+from boxed.pinteract import Pinteract
 from ejudge import builtins_ctrl
 from ejudge.exceptions import MissingInputError
 from ejudge.util import remove_trailing_newline_from_testcase, \
@@ -149,6 +149,10 @@ class ExecutionManager:
 
         if not self.build_manager.is_built:
             self.build_manager.build()
+        if not self.build_manager.has_successful_execution:
+            self.log('info', 'executing program with %s inputs '
+                             '(compare_streams=%s)' %
+                     (len(self.inputs), self.compare_streams))
         self.is_started = True
         return time.time()
 
@@ -319,6 +323,9 @@ class PInteractExecutionManager(ExecutionManager):
         This function may change the current working path.
         """
 
+        if not self.build_manager.has_successful_execution:
+            self.log('debug', 'executing with pinteract runner')
+
         def append_non_empty_output():
             data = process.receive()
             if data:
@@ -347,10 +354,10 @@ class PInteractExecutionManager(ExecutionManager):
                     missing = self.inputs[idx:]
                     missing_str = '\n'.join('    ' + x for x in missing)
                     msg = (
-                        'Error: Process closed without consuming all '
-                        'inputs.\n'
-                        'List of unused inputs:\n'
-                    ) + missing_str
+                              'Error: Process closed without consuming all '
+                              'inputs.\n'
+                              'List of unused inputs:\n'
+                          ) + missing_str
 
                     return ErrorTestCase.runtime(
                         list(result),
@@ -371,7 +378,7 @@ class PInteractExecutionManager(ExecutionManager):
         assert not any(error_), error_
         return result
 
-    #TODO: still buggy!
+    # TODO: still buggy!
     def run_popen(self, shell_args):
         """
         Run script as a subprocess and gather results of execution.
@@ -379,7 +386,9 @@ class PInteractExecutionManager(ExecutionManager):
         Collect only the raw stdin and stdout streams.
         """
 
-        print('using popen')
+        if not self.build_manager.has_successful_execution:
+            self.log('debug', 'executing with popen runner')
+
         inputs = '\n'.join(self.inputs)
         process = subprocess.Popen(shell_args,
                                    cwd=self.build_manager.build_path,
