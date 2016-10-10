@@ -1,10 +1,12 @@
 import functools
 import io
+import logging
 import multiprocessing
 import os
 import subprocess
 import sys
 
+import time
 from lazyutils import delegate_to
 from boxed.pinteract import Pinteract
 
@@ -13,6 +15,8 @@ from ejudge.exceptions import MissingInputError
 from ejudge.util import remove_trailing_newline_from_testcase, \
     timeout as run_with_timeout, format_traceback
 from iospec import Out, In, datatypes, SimpleTestCase, ErrorTestCase
+
+logger = logging.getLogger('ejudge')
 
 
 class ExecutionManager:
@@ -45,6 +49,17 @@ class ExecutionManager:
             self.inputs = tuple(inputs)
         self.is_started = False
         self.is_closed = False
+        self.duration = 0
+
+    def log(self, level, message):
+        """
+        Log message for the given log level.
+        """
+
+        if self.is_sandboxed:
+            self.build_manager.messages.append((level, message))
+        else:
+            getattr(logger, level)(message)
 
     def add_input(self, input_str):
         """
@@ -74,9 +89,11 @@ class ExecutionManager:
                 'Program already started execution. Please create another '
                 'ExecutionManager instance.'
             )
-        self.start()
+        t0 = self.start()
         result = self.interact()
-        self.end()
+        t1 = self.end()
+        self.duration = t1 - t0
+        self.build_manager.execution_duration += self.duration
         if self.compare_streams:
             result.normalize(stream=True)
         return remove_trailing_newline_from_testcase(result)
@@ -133,6 +150,7 @@ class ExecutionManager:
         if not self.build_manager.is_built:
             self.build_manager.build()
         self.is_started = True
+        return time.time()
 
     def end(self):
         """
@@ -140,6 +158,10 @@ class ExecutionManager:
         """
 
         self.is_closed = True
+        if not self.build_manager.has_successful_execution:
+            self.log('debug', 'first run successful!')
+        self.build_manager.has_successful_execution = True
+        return time.time()
 
 
 class IntegratedExecutionManager(ExecutionManager):

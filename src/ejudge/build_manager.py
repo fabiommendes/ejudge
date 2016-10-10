@@ -1,9 +1,13 @@
+import logging
 import os
 import stat
-import tempfile
 import subprocess
+import tempfile
+import time
 
 from ejudge.exceptions import BuildError
+
+logger = logging.getLogger('ejudge')
 
 
 class BuildManager:
@@ -23,18 +27,38 @@ class BuildManager:
         self.compare_streams = compare_streams
         self.is_built = False
         self.is_closed = False
+        self.messages = []
+        self.has_successful_execution = False
+        self.build_duration = 0
+        self.execution_duration = 0
+        self.start_time = time.time()
 
-    def build(self):
+    def log(self, level, message):
+        """
+        Log message for the given log level.
+        """
+
+        if self.is_sandboxed:
+            self.messages.append((level, message))
+        else:
+            getattr(logger, level)(message)
+
+    def build(self, _log=True):
         """
         Prepares build for the given context.
         """
 
+        t0 = time.time()
         try:
             self.syntax_check()
         except SyntaxError as ex:
+            self.log('debug', '%s: invalid syntax!' % self.__class__.__name__)
             msg = str(ex)
             raise BuildError(msg)
         self.is_built = True
+        self.build_duration = time.time() - t0
+        if _log:
+            log_is_built(self)
 
     def close(self):
         """
@@ -91,11 +115,11 @@ class ExternalProgramBuildManager(BuildManager):
     build_path = None
     source_extension = None
 
-    def build(self):
+    def build(self, _log=True):
         if not self.build_path:
             self.build_path = self.build_tempdir()
         self.prepare_files()
-        super().build()
+        super().build(_log=_log)
 
     def build_tempdir(self):
         """
@@ -114,6 +138,7 @@ class ExternalProgramBuildManager(BuildManager):
             )
 
         self.build_path = temp_dir
+        self.log('debug', 'temporary build path at %r' % temp_dir)
         return temp_dir
 
     def write(self, path, data):
@@ -141,6 +166,7 @@ class ExternalProgramBuildManager(BuildManager):
         # permissions
         if self.is_sandboxed:
             os.chmod(full_path, stat.S_IREAD | stat.S_IROTH | stat.S_IRGRP)
+        self.log('debug', '%r successfully created' % path)
 
     def prepare_files(self):
         """
@@ -189,13 +215,16 @@ class CompiledLanguageBuildManager(ExternalProgramBuildManager):
     build_args = None
     executable_name = 'main.exe'
 
-    def build(self):
-        super().build()
+    def build(self, _log=True):
+        super().build(_log=False)
         self.is_built = False
         self.compile_files()
         self.is_built = True
+        if _log:
+            log_is_built(self)
 
     def compile_files(self):
+        self.log('info', 'building: %s' % ' '.join(self.build_args))
         try:
             source_name = self.get_source_filename(absolute=True)
             executable_name = os.path.join(self.build_path,
@@ -221,6 +250,7 @@ class CompiledLanguageBuildManager(ExternalProgramBuildManager):
         except subprocess.CalledProcessError as ex:
             error_msg = ex.output.decode('utf8')
             raise BuildError(error_msg)
+        self.log('debug', 'executable created at %r' % executable_name)
 
     def get_build_args(self):
         """
@@ -244,3 +274,7 @@ class InterpretedLanguageBuildManager(ExternalProgramBuildManager):
     """
     Basic support for scripting languages and interpreter-like execution.
     """
+
+
+def log_is_built(manager):
+    manager.log('info', 'successfully built (%s sec)' % manager.build_duration)

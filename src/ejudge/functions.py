@@ -1,13 +1,15 @@
 import decimal
 import io
+import logging
 import traceback
 
 from boxed.jsonbox import run as run_sandbox
 from ejudge import registry
 from ejudge.exceptions import BuildError
-from ejudge.util import keep_cwd, do_nothing_context_manager
 from iospec import parse as ioparse, TestCase, ErrorTestCase, IoSpec
 from iospec.feedback import feedback as get_feedback
+
+logger = logging.getLogger('ejudge')
 
 
 def run(source, inputs, lang=None, *,
@@ -73,8 +75,9 @@ def run(source, inputs, lang=None, *,
 
     # Run in sandboxed mode
     if sandbox:
+        logger.debug('executing %s program inside sandbox' % lang)
         imports = build_manager.get_modules()
-        result = run_sandbox(
+        result, messages = run_sandbox(
             run,
             args=(source, inputs, lang),
             kwargs={
@@ -89,6 +92,9 @@ def run(source, inputs, lang=None, *,
             imports=imports,
             timeout=None,
         )
+        for (level, message) in messages:
+            getattr(logger, level)(message)
+
         return IoSpec.from_json(result)
 
     # Prepare build manager
@@ -120,14 +126,17 @@ def run(source, inputs, lang=None, *,
         data.append(result)
         if fast and result.is_error:
             break
+    build_manager.log('info', 'executed all %s testcases in %s sec' %
+                      (len(inputs), build_manager.execution_duration))
 
     # Prepare resulting iospec object
     result = IoSpec(data)
     result.set_meta('lang', build_manager.language)
     if return_json:
-        return result.to_json()
-    else:
-        return result
+        result = result.to_json()
+    if running_in_sandbox:
+        return result, build_manager.messages
+    return result
 
 
 def grade(source, iospec, lang=None, *,

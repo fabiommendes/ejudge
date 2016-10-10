@@ -66,7 +66,7 @@ class TestPythonSupport(base.TestLanguageSupport):
     @pytest.mark.sandbox
     def test_raises_timeout_error_in_sandbox(self, lang, iospec):
         src = self.get_source('timeout')
-        result = functions.run(src, iospec, lang=lang, timeout=0.05, sandbox=True)
+        result = functions.run(src, iospec, lang=lang, timeout=0.1, sandbox=True)
         assert result.get_error_type() == 'timeout'
 
     def test_compare_streams(self, lang, iospec):
