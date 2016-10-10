@@ -50,11 +50,9 @@ setup(
     package_dir={'': 'src'},
     packages=find_packages('src'),
     install_requires=[
-        'psutil',
-        'pexpect',
         'lazyutils',
         'iospec>=0.3.5',
-        'boxed>=0.3.4'
+        'boxed>=0.3.8'
     ],
     extras_require={
         'dev': [
