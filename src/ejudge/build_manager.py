@@ -180,7 +180,7 @@ class ExternalProgramBuildManager(BuildManager):
         full_path = os.path.join(self.build_path, path)
 
         # Save source
-        with open(full_path, 'w') as F:
+        with open(full_path, 'w', encoding='utf8') as F:
             F.write(data)
 
         # If it is going to run inside a sandbox, we have to give very liberal
