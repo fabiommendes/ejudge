@@ -12,7 +12,6 @@ class PytugaBuildManager(IntegratedBuildManager):
     language = 'pytuga'
     transpiled = ''
 
-
     def syntax_check(self):
         pytuga.compile(self.source, 'main.pytg', 'exec')
 

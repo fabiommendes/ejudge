@@ -6,7 +6,7 @@ from ejudge.tests import abstract as base
 sources = r"""
 ## ok
 name = raw_input("name: ")
-print("hello %s!" % name)
+print "hello %s!" % name
 
 ## wrong
 name = raw_input("name: ")

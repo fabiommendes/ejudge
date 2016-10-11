@@ -51,8 +51,8 @@ setup(
     packages=find_packages('src'),
     install_requires=[
         'lazyutils',
-        'iospec>=0.3.5',
-        'boxed>=0.3.8'
+        'iospec>=0.3.11',
+        'boxed>=0.3.9'
     ],
     extras_require={
         'dev': [

@@ -33,6 +33,7 @@ class ExecutionManager:
     source = delegate_to('build_manager')
     is_sandboxed = delegate_to('build_manager')
     default_compare_streams = False
+    env = None
 
     @property
     def compare_streams(self):
@@ -50,6 +51,7 @@ class ExecutionManager:
         self.is_started = False
         self.is_closed = False
         self.duration = 0
+        self.interaction = []
 
     def log(self, level, message):
         """
@@ -75,7 +77,7 @@ class ExecutionManager:
 
         self.inputs += tuple(seq)
 
-    def run(self):
+    def run(self, timeout=None):
         """
         Run program and return a list of In/Out elements interactions.
         """
@@ -90,7 +92,11 @@ class ExecutionManager:
                 'ExecutionManager instance.'
             )
         t0 = self.start()
-        result = self.interact()
+        try:
+            result = self.interact(timeout)
+        except TimeoutError:
+            result = ErrorTestCase.timeout()
+
         t1 = self.end()
         self.duration = t1 - t0
         self.build_manager.execution_duration += self.duration
@@ -116,17 +122,7 @@ class ExecutionManager:
         self.interact_with_user()
         self.end()
 
-    def run_with_timeout(self, timeout):
-        """
-        Run execution with a given timeout.
-        """
-
-        try:
-            return run_with_timeout(self.run, timeout=timeout)
-        except TimeoutError:
-            return ErrorTestCase.timeout()
-
-    def interact(self):
+    def interact(self, timeout=None):
         """
         Interact with the program by using all input strings.
 
@@ -176,32 +172,25 @@ class IntegratedExecutionManager(ExecutionManager):
     __print = staticmethod(print)
     __input = staticmethod(input)
 
-    def __init__(self, build_manager, inputs):
-        super().__init__(build_manager, inputs)
-        self.interaction = []
-        self.is_isolated = False
+    def _globals_and_locals(self):
+        # Set locals and globals
+        if self.build_manager.locals is None:
+            locals_dic = None
+        else:
+            locals_dic = dict(self.build_manager.locals)
+        globals_dic = dict(self.build_manager.globals or {})
+        return globals_dic, locals_dic
 
-    def interact_integrated(self):
-        builtins_ctrl.update(self.builtins())
+    def wrapped_exec(self):
+        globals_dic, locals_dic = self._globals_and_locals()
         try:
-            if self.build_manager.locals is None:
-                locals_dic = None
-            else:
-                locals_dic = dict(self.build_manager.locals)
-            globals_dic = dict(self.build_manager.globals or {})
-            try:
+            with builtins_ctrl.patched_builtins(self.builtins()):
                 self.exec(globals_dic, locals_dic)
-                result = SimpleTestCase(self.interaction)
-            except Exception as ex:
-                error = format_traceback(ex, self.source)
-                result = ErrorTestCase.runtime(
-                    self.interaction,
-                    error_message=error,
-                )
-        finally:
-            builtins_ctrl.restore()
-
-        return result
+        except Exception as ex:
+            error = format_traceback(ex, self.source)
+            return ErrorTestCase.runtime(self.interaction, error_message=error)
+        else:
+            return SimpleTestCase(self.interaction)
 
     def interact_with_user(self):
         if self.build_manager.locals is None:
@@ -211,9 +200,25 @@ class IntegratedExecutionManager(ExecutionManager):
         globals_dic = dict(self.build_manager.globals or {})
         self.exec(globals_dic, locals_dic)
 
-    def interact(self):
+    def interact_with_timeout(self, timeout=None, storage=None):
+        t0 = time.time()
+
+        if timeout is not None:
+            try:
+                result = run_with_timeout(self.wrapped_exec, timeout=timeout)
+            except TimeoutError:
+                result = ErrorTestCase.timeout(self.interaction)
+        else:
+            result = self.wrapped_exec()
+
+        if storage is not None:
+            storage.put((result, time.time() - t0))
+        return result, time.time() - t0
+
+    def interact(self, timeout=None):
         if self.is_sandboxed:
-            return self.interact_integrated()
+            result, dt = self.interact_with_timeout(timeout)
+            return result
         else:
             # We spawn and immediately join the child process in order to
             # execute the integrated manager in a separate environment. This
@@ -221,31 +226,28 @@ class IntegratedExecutionManager(ExecutionManager):
             # global state to the interpreter.
             #
             # Since python do not really prevent scripts from introducing global
-            # state, we always isolate execution this way to prevent any
-            # potentially dangerous global state to leak into the main
-            # interpreter process.
+            # state, we always isolate execution to prevent any potentially
+            # dangerous global state to leak into the main interpreter process.
             queue = multiprocessing.Queue()
             process = multiprocessing.Process(
                 target=integrated_manager_interact,
-                kwargs={
-                    'queue': queue,
-                    'inputs': self.inputs,
-                    'build_manager': self.build_manager,
-                    'execution_manager_class': type(self),
-                }
+                args=(self, queue, timeout),
             )
             process.start()
-            process.join()
-            return queue.get()
+            process.join(timeout)
 
-    # noinspection PyShadowingBuiltins
+            if queue:
+                result, time = queue.get()
+                return result
+            else:
+                raise RuntimeError('unexpected error')
+
     def exec(self, globals, locals):
         """
         Execute code with the given locals and globals.
         """
 
         code = compile(self.source, 'main.py', 'exec')
-
         if locals is None:
             exec(code, globals)
         else:
@@ -297,11 +299,11 @@ class PInteractExecutionManager(ExecutionManager):
     shell_args = None
     default_compare_streams = True
 
-    def interact(self):
+    def interact(self, timeout=None):
         if self.compare_streams:
-            return self.run_popen(self.get_shell_args())
+            return self.run_popen(self.get_shell_args(), timeout)
         else:
-            return self.run_pinteract(self.get_shell_args())
+            return self.run_pinteract(self.get_shell_args(), timeout)
 
     def interact_with_user(self):
         os.chdir(self.build_manager.build_path)
@@ -311,7 +313,7 @@ class PInteractExecutionManager(ExecutionManager):
         except subprocess.CalledProcessError as ex:
             raise RuntimeError('%r executed with error: %s' % (shell_args, ex))
 
-    def run_pinteract(self, shell_args):
+    def run_pinteract(self, shell_args, timeout=None):
         """
         Run script as a subprocess and gather results of execution.
 
@@ -333,10 +335,13 @@ class PInteractExecutionManager(ExecutionManager):
 
         # Execute script in the tempdir and than go back once execution has
         # finished
-        result = SimpleTestCase()
+        result = self.interaction
 
         # os.chdir(self.build_manager.build_path)
-        process = Pinteract(shell_args, cwd=self.build_manager.build_path)
+        process = Pinteract(shell_args,
+                            cwd=self.build_manager.build_path,
+                            timeout=timeout,
+                            env=self.env)
 
         # Fetch all In/Out strings
         append_non_empty_output()
@@ -354,32 +359,35 @@ class PInteractExecutionManager(ExecutionManager):
                     missing = self.inputs[idx:]
                     missing_str = '\n'.join('    ' + x for x in missing)
                     msg = (
-                              'Error: Process closed without consuming all '
-                              'inputs.\n'
-                              'List of unused inputs:\n'
-                          ) + missing_str
+                        'Error: Process closed without consuming all inputs.\n'
+                        'Unused inputs:\n  '
+                    ) + missing_str
 
                     return ErrorTestCase.runtime(
-                        list(result),
+                        result,
                         error_message=msg
                     )
 
                 # This clause is just a safeguard. We don't expect to ever
                 # get here
                 return ErrorTestCase.runtime(
-                    list(result),
+                    result,
                     error_message='An internal error occurred while trying '
                                   'to interact with the script: %s.' % ex
                 )
-            append_non_empty_output()
+
+            try:
+                append_non_empty_output()
+            except TimeoutError:
+                return ErrorTestCase.timeout(result)
 
         # Finish process
         error_ = process.finish()
         assert not any(error_), error_
-        return result
+        return SimpleTestCase(result)
 
     # TODO: still buggy!
-    def run_popen(self, shell_args):
+    def run_popen(self, shell_args, timeout=None):
         """
         Run script as a subprocess and gather results of execution.
 
@@ -395,8 +403,9 @@ class PInteractExecutionManager(ExecutionManager):
                                    universal_newlines=True,
                                    stderr=subprocess.STDOUT,
                                    stdin=subprocess.PIPE,
-                                   stdout=subprocess.PIPE)
-        result, err = process.communicate(inputs)
+                                   stdout=subprocess.PIPE,
+                                   env=self.env)
+        result, err = process.communicate(inputs, timeout)
 
         if result.endswith('\n'):
             result = result[:-1]
@@ -469,8 +478,9 @@ class InterpretedLanguageExecutionManager(PInteractExecutionManager):
 
 # Interact with integrated manager as the target function in a subprocess
 # execution.
-def integrated_manager_interact(queue, inputs, build_manager,
-                                execution_manager_class):
-    exc_manager = execution_manager_class(build_manager, inputs)
-    result = exc_manager.interact_integrated()
-    queue.put(result)
+def integrated_manager_interact(exc_manager, storage, timeout):
+    """
+    Interact with execution manager.
+    """
+
+    exc_manager.interact_with_timeout(timeout, storage)

@@ -67,7 +67,8 @@ class Python2BuildManager(InterpretedLanguageBuildManager):
 
         check = "f = '%s';compile(open(f).read(), f, 'exec')" % filename
         try:
-            subprocess.check_output(['python2', '-c', check])
+            subprocess.check_output(['python2', '-s', '-S', '-E', '-c', check],
+                                    stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as ex:
             data = ex.output
             data = data.decode('utf8')
@@ -80,6 +81,10 @@ class Python2ExecutionManager(InterpretedLanguageExecutionManager):
     """
 
     interpreter_command = 'python2'
+
+    def get_interpreter_command(self):
+        source_name = self.build_manager.get_source_filename()
+        return ['python2', '-E', '-s', '-S', source_name]
 
 
 # Utility functions

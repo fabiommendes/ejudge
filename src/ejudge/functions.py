@@ -1,8 +1,10 @@
-import decimal
 import io
 import logging
 import traceback
 
+import sys
+
+from boxed.core import capture_print
 from boxed.jsonbox import run as run_sandbox
 from ejudge import registry
 from ejudge.exceptions import BuildError
@@ -14,7 +16,7 @@ logger = logging.getLogger('ejudge')
 
 def run(source, inputs, lang=None, *,
         fast=False, timeout=None, raises=False, path=None, sandbox=True,
-        compare_streams=False, **kwargs):
+        compare_streams=False, fake_sandbox=False, debug=False):
     """
     Run program with the given list of inputs and returns the corresponding
     :class:`iospec.IoSpec` instance with the results.
@@ -53,6 +55,13 @@ def run(source, inputs, lang=None, *,
         strings, the resulting tree will have a single test case.
     """
 
+    return run_worker(**locals())[0]
+
+
+def run_worker(source, inputs, lang=None, *,
+               fast=False, timeout=None, raises=False, path=None, sandbox=True,
+               compare_streams=False, is_sandboxed=False, fake_sandbox=False,
+               debug=False):
     # Normalize inputs
     if isinstance(inputs, (IoSpec, TestCase)):
         inputs = inputs.inputs()
@@ -62,14 +71,16 @@ def run(source, inputs, lang=None, *,
         else:
             inputs = [list(map(str, x)) for x in inputs]
 
-    # Optional arguments
-    running_in_sandbox = kwargs.get('_running_in_sandbox', False)
-    return_json = kwargs.get('_return_json', False)
+    # Validate params
+    if timeout is not None and timeout <= 0:
+        raise ValueError('timeout must be positive, got: %s' % timeout)
+    if sandbox and is_sandboxed:
+        raise ValueError('cannot set sandbox = is_sandboxed = True')
 
     # Create build manager
     build_manager = registry.build_manager_from_path(
         lang, source, path,
-        is_sandboxed=running_in_sandbox,
+        is_sandboxed=is_sandboxed,
         compare_streams=compare_streams,
     )
 
@@ -77,26 +88,37 @@ def run(source, inputs, lang=None, *,
     if sandbox:
         logger.debug('executing %s program inside sandbox' % lang)
         imports = build_manager.get_modules()
-        result, messages = run_sandbox(
-            run,
-            args=(source, inputs, lang),
-            kwargs={
-                'raises': raises,
-                'timeout': timeout,
-                'fast': fast,
-                'path': path,
-                'sandbox': False,
-                'compare_streams': compare_streams,
-                '_running_in_sandbox': True,
-                '_return_json': True
-            },
-            imports=imports,
-            timeout=None,
-        )
+        args = (source, inputs, lang)
+        kwargs = {
+            'raises': raises,
+            'timeout': timeout,
+            'fast': fast,
+            'path': path,
+            'sandbox': False,
+            'compare_streams': compare_streams,
+            'is_sandboxed': True,
+        }
+
+        if fake_sandbox:
+            result, messages = run_worker(*args, **kwargs)
+        else:
+            try:
+                with capture_print() as data:
+                    result, messages = run_sandbox(
+                        run_worker,
+                        args=args,
+                        kwargs=kwargs,
+                        imports=imports,
+                        print_messages=True,
+                    )
+            except Exception:
+                print(data.read(), file=sys.stderr)
+                raise
+
         for (level, message) in messages:
             getattr(logger, level)(message)
 
-        return IoSpec.from_json(result)
+        return IoSpec.from_json(result), []
 
     # Prepare build manager
     try:
@@ -105,7 +127,10 @@ def run(source, inputs, lang=None, *,
         if raises:
             raise
         result = IoSpec([ErrorTestCase.build(error_message=str(ex))])
-        return result.to_json() if return_json else result
+        if is_sandboxed:
+            return result.to_json(), []
+        else:
+            return result, []
 
     # Run all examples with the execution manager
     data = []
@@ -113,31 +138,22 @@ def run(source, inputs, lang=None, *,
     for input_strings in inputs:
         ctrl = registry.execution_manager(language, build_manager,
                                           input_strings)
-        try:
-            if timeout is None:
-                result = ctrl.run()
-            elif timeout > 0:
-                result = ctrl.run_with_timeout(timeout)
-            else:
-                raise ValueError('timeout must be positive, got: %s' % timeout)
-        except Exception as ex:
-            if raises:
-                raise
-            result = _error_test_case(ex, ex.__traceback__)
+        result = ctrl.run(timeout)
+        assert isinstance(result, TestCase)
         data.append(result)
         if fast and result.is_error:
             break
+
     build_manager.log('info', 'executed all %s testcases in %s sec' %
                       (len(inputs), build_manager.execution_duration))
 
     # Prepare resulting iospec object
     result = IoSpec(data)
     result.set_meta('lang', build_manager.language)
-    if return_json:
-        result = result.to_json()
-    if running_in_sandbox:
-        return result, build_manager.messages
-    return result
+    if is_sandboxed:
+        return result.to_json(), build_manager.messages
+    else:
+        return result, []
 
 
 def grade(source, iospec, lang=None, *,

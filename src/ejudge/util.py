@@ -45,13 +45,16 @@ def __timeout_handler(signum, frame):
     raise TimeoutError()
 
 
-def timeout(func, args=(), kwargs={}, timeout=1.0, threading=True, raises=True):
+def timeout(func, args=(), kwargs={}, timeout=1.0, threading=True):
     """
     Execute callable `func` with timeout. If timeout is None or zero,
     ignores any timeout exceptions.
 
     If timeout exceeds, raises a TimeoutError.
     """
+
+    if timeout is not None and timeout <= 0:
+        raise ValueError('timeout must be positive')
 
     if not timeout or not 1 / timeout:
         return func(*args, **kwargs)
@@ -66,14 +69,11 @@ def timeout(func, args=(), kwargs={}, timeout=1.0, threading=True, raises=True):
             except Exception as ex:
                 exceptions.append(ex)
 
-        thread = Thread(target=target)
+        thread = Thread(target=target, daemon=True)
         thread.start()
         thread.join(timeout=timeout)
         if thread.is_alive():
-            if raises:
-                raise TimeoutError
-            else:
-                return None
+            raise TimeoutError
         else:
             try:
                 return result.pop()
@@ -84,11 +84,6 @@ def timeout(func, args=(), kwargs={}, timeout=1.0, threading=True, raises=True):
         signal.alarm(timeout)
         try:
             result = func(*args, **kwargs)
-        except TimeoutError:
-            if raises:
-                raise
-            else:
-                return None
         finally:
             signal.alarm(0)
 
@@ -99,7 +94,9 @@ def timeout(func, args=(), kwargs={}, timeout=1.0, threading=True, raises=True):
 # Lazy evaluation
 #
 class lazy(object):
-    """Lazy accessor"""
+    """
+    Lazy accessor.
+    """
 
     def __init__(self, func):
         self.func = func

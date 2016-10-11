@@ -36,7 +36,7 @@ name = input('name: ')
 t0 = time.time()
 
 # semi-infinite loop :)
-while time.time() < t0 + 0.5:
+while time.time() < t0 + 5:
     pass
 """
 
@@ -55,20 +55,6 @@ class TestPythonSupport(base.TestLanguageSupport):
             '  File "main.py", line 1, in <module>\n\n'
             'ZeroDivisionError: division by zero')
 
-    def test_raises_timeout_error(self, lang, iospec):
-        src = self.get_source('timeout')
-        t0 = time.time()
-        result = functions.run(src, iospec, lang=lang, timeout=0.1, sandbox=False)
-        dt = time.time() - t0
-        assert result.get_error_type() == 'timeout'
-        assert dt < 0.45  # slightly less than maximum program runtime
-
-    @pytest.mark.sandbox
-    def test_raises_timeout_error_in_sandbox(self, lang, iospec):
-        src = self.get_source('timeout')
-        result = functions.run(src, iospec, lang=lang, timeout=0.1, sandbox=True)
-        assert result.get_error_type() == 'timeout'
-
     def test_compare_streams(self, lang, iospec):
         src = (
             'name = input()\n'
@@ -78,3 +64,6 @@ class TestPythonSupport(base.TestLanguageSupport):
         fb.testcase.pprint()
         fb.answer_key.pprint()
         assert fb.is_correct
+
+    def test_raises_runtime_error_in_fake_sandbox(self, lang, iospec):
+        self.test_raises_timeout_error(lang, iospec, fake=True)

@@ -48,15 +48,28 @@ class BuildManager:
         Prepares build for the given context.
         """
 
-        t0 = time.time()
+        raise NotImplementedError
+
+    def _build_start(self, _log=True):
+        """
+        Must be called by .build() in the beginning of the build process.
+        """
+
+        self.__t0 = time.time()
         try:
             self.syntax_check()
         except SyntaxError as ex:
             self.log('debug', '%s: invalid syntax!' % self.__class__.__name__)
             msg = str(ex)
             raise BuildError(msg)
+
+    def _build_end(self, _log=True):
+        """
+        Must be called by .build() in the end of the build process.
+        """
+
         self.is_built = True
-        self.build_duration = time.time() - t0
+        self.build_duration = time.time() - self.__t0
         if _log:
             log_is_built(self)
 
@@ -87,7 +100,7 @@ class BuildManager:
         box.run() in sandboxed mode.
         """
 
-        return (list(self.modules or ())) + [self.__class__.__module__]
+        return ['ejudge', self.__class__.__module__] + list(self.modules or ())
 
 
 class IntegratedBuildManager(BuildManager):
@@ -104,6 +117,10 @@ class IntegratedBuildManager(BuildManager):
         self.locals = locals
         self.globals = globals
 
+    def build(self, _log=True):
+        self._build_start(_log)
+        self._build_end(_log)
+
 
 class ExternalProgramBuildManager(BuildManager):
     """
@@ -116,10 +133,14 @@ class ExternalProgramBuildManager(BuildManager):
     source_extension = None
 
     def build(self, _log=True):
+        self._build_start(_log)
+        self._build_run()
+        self._build_end(_log)
+
+    def _build_run(self):
         if not self.build_path:
             self.build_path = self.build_tempdir()
         self.prepare_files()
-        super().build(_log=_log)
 
     def build_tempdir(self):
         """
@@ -215,13 +236,9 @@ class CompiledLanguageBuildManager(ExternalProgramBuildManager):
     build_args = None
     executable_name = 'main.exe'
 
-    def build(self, _log=True):
-        super().build(_log=False)
-        self.is_built = False
+    def _build_run(self):
+        super()._build_run()
         self.compile_files()
-        self.is_built = True
-        if _log:
-            log_is_built(self)
 
     def compile_files(self):
         self.log('info', 'building: %s' % ' '.join(self.build_args))
@@ -231,10 +248,18 @@ class CompiledLanguageBuildManager(ExternalProgramBuildManager):
                                            self.executable_name)
             assert os.path.exists(source_name)
             build_args = self.get_build_args()
-            subprocess.check_output(build_args,
-                                    stderr=subprocess.STDOUT,
-                                    timeout=10,
-                                    cwd=self.build_path)
+            env = os.environ.get
+            subprocess.check_output(
+                build_args,
+                stderr=subprocess.STDOUT,
+                timeout=10,
+                cwd=self.build_path,
+                env={
+                    'PATH': env('PATH', '/usr/bin/'),
+                    'LANG': env('LANG') or 'C',
+                    'LD_LIBRARY_PATH': env('LD_LIBRARY_PATH', '/usr/lib/')
+                },
+            )
 
             # Make executable readable and executable by everyone in sandbox
             # mode so the `nobody` can execute this file

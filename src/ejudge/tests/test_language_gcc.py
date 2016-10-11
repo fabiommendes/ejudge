@@ -64,6 +64,20 @@ void main() {
     printf("%s, %s\n", name, job);
 }
 
+
+## timeout
+#include<stdio.h>
+#include<time.h>
+
+int main(void) {
+    clock_t t0 = clock();
+    clock_t tf = t0 + 5 * CLOCKS_PER_SEC;
+
+    while (clock() < CLOCKS_PER_SEC) {
+        clock(); // procrastinate. We don't sleep as it seems to break boxed...
+    }
+}
+
 """
 
 

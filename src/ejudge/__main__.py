@@ -108,3 +108,6 @@ def main():
         print('Type `ejudge --help` for usage.')
     else:
         func(args)
+
+if __name__ == '__main__':
+    main()

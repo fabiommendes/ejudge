@@ -1,4 +1,5 @@
 import pytest
+import time
 
 from ejudge import functions, registry
 from iospec import parse as parse_string, datatypes, SimpleTestCase, \
@@ -142,12 +143,33 @@ class TestLanguageSupport:
 
     def test_run_recursive_function(self, src_recursive, lang):
         result = functions.run(src_recursive, [()], lang=lang, sandbox=False)
+        result.pprint()
         assert list(result[0]) == ['120']
 
     @pytest.mark.sandbox
     def test_run_recursive_function_in_sandbox(self, src_recursive, lang):
         result = functions.run(src_recursive, [()], lang=lang, sandbox=True)
+        result.pprint()
         assert list(result[0]) == ['120']
+
+    def test_raises_timeout_error(self, lang, iospec, fake=False,
+                                  sandbox=False):
+        src = self.get_source('timeout')
+        if src is None:
+            return
+
+        t0 = time.time()
+        result = functions.run(src, iospec, lang=lang, timeout=0.1,
+                               sandbox=fake or sandbox, fake_sandbox=fake,
+                               debug=True)
+        dt = time.time() - t0
+        result.pprint()
+        assert result.get_error_type() == 'timeout'
+        assert dt < 1.5
+
+    @pytest.mark.sandbox
+    def test_raises_timeout_error_in_sandbox(self, lang, iospec, fake=False):
+        self.test_raises_timeout_error(lang, iospec, fake)
 
     #
     # Test grading and check if the feedback is correct
