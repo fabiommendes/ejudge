@@ -9,7 +9,7 @@ from boxed.jsonbox import run as run_sandbox
 from ejudge import registry
 from ejudge.exceptions import BuildError
 from iospec import parse as ioparse, TestCase, ErrorTestCase, IoSpec
-from iospec.feedback import feedback as get_feedback
+from iospec.feedback import get_feedback
 
 logger = logging.getLogger('ejudge')
 
@@ -141,7 +141,7 @@ def run_worker(source, inputs, lang=None, *,
         result = ctrl.run(timeout)
         assert isinstance(result, TestCase)
         data.append(result)
-        if fast and result.is_error:
+        if fast and result.is_error_test_case:
             break
 
     build_manager.log('info', 'executed all %s testcases in %s sec' %

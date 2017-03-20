@@ -81,7 +81,7 @@ def command_grade(args):
     source, lang = get_source_and_lang(args.file)
     input_data = iospec.parse(args.inputs)
     feedback = ejudge.grade(source, input_data, lang=lang)
-    print(feedback.as_text())
+    print(feedback.render_text())
 
 
 def get_source_and_lang(path):

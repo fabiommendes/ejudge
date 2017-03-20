@@ -1,0 +1,3 @@
+{
+  "src/ejudge/tests/test_language_python3.py::TestPythonSupport::()::test_raises_runtime_error_in_fake_sandbox": true
+}

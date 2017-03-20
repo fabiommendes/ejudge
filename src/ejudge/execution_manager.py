@@ -14,7 +14,7 @@ from ejudge import builtins_ctrl
 from ejudge.exceptions import MissingInputError
 from ejudge.util import remove_trailing_newline_from_testcase, \
     timeout as run_with_timeout, format_traceback
-from iospec import Out, In, datatypes, SimpleTestCase, ErrorTestCase
+from iospec import Out, In, datatypes, StandardTestCase, ErrorTestCase
 
 logger = logging.getLogger('ejudge')
 
@@ -190,7 +190,7 @@ class IntegratedExecutionManager(ExecutionManager):
             error = format_traceback(ex, self.source)
             return ErrorTestCase.runtime(self.interaction, error_message=error)
         else:
-            return SimpleTestCase(self.interaction)
+            return StandardTestCase(self.interaction)
 
     def interact_with_user(self):
         if self.build_manager.locals is None:
@@ -203,13 +203,10 @@ class IntegratedExecutionManager(ExecutionManager):
     def interact_with_timeout(self, timeout=None, storage=None):
         t0 = time.time()
 
-        if timeout is not None:
-            try:
-                result = run_with_timeout(self.wrapped_exec, timeout=timeout)
-            except TimeoutError:
-                result = ErrorTestCase.timeout(self.interaction)
-        else:
-            result = self.wrapped_exec()
+        try:
+            result = run_with_timeout(self.wrapped_exec, timeout=timeout)
+        except TimeoutError:
+            result = ErrorTestCase.timeout(self.interaction)
 
         if storage is not None:
             storage.put((result, time.time() - t0))
@@ -231,10 +228,14 @@ class IntegratedExecutionManager(ExecutionManager):
             queue = multiprocessing.Queue()
             process = multiprocessing.Process(
                 target=integrated_manager_interact,
-                args=(self, queue, timeout),
+                args=(self, queue, None),
             )
             process.start()
             process.join(timeout)
+
+            if process.is_alive():
+                process.terminate()
+                return ErrorTestCase.timeout(self.interaction)
 
             if queue:
                 result, time = queue.get()
@@ -359,9 +360,9 @@ class PInteractExecutionManager(ExecutionManager):
                     missing = self.inputs[idx:]
                     missing_str = '\n'.join('    ' + x for x in missing)
                     msg = (
-                        'Error: Process closed without consuming all inputs.\n'
-                        'Unused inputs:\n  '
-                    ) + missing_str
+                              'Error: Process closed without consuming all inputs.\n'
+                              'Unused inputs:\n  '
+                          ) + missing_str
 
                     return ErrorTestCase.runtime(
                         result,
@@ -384,7 +385,7 @@ class PInteractExecutionManager(ExecutionManager):
         # Finish process
         error_ = process.finish()
         assert not any(error_), error_
-        return SimpleTestCase(result)
+        return StandardTestCase(result)
 
     # TODO: still buggy!
     def run_popen(self, shell_args, timeout=None):
@@ -412,7 +413,7 @@ class PInteractExecutionManager(ExecutionManager):
         atoms = [In(x) for x in self.inputs]
         atoms.append(Out(result))
         if process.poll() == 0:
-            return SimpleTestCase(atoms)
+            return StandardTestCase(atoms)
         else:
             return ErrorTestCase.runtime(atoms)
 

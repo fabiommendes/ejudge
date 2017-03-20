@@ -50,7 +50,7 @@ def test_simple_inputs():
     ast.pprint()
     result.pprint()
     assert ast.to_json() == result.to_json()
-    assert iospec.isequal(ast, result)
+    assert iospec.is_equal(ast, result)
 
 
 def test_grade_simple_inputs():

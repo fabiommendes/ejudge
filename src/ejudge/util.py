@@ -39,18 +39,17 @@ def capture_print(*args, **kwds):
 #
 # Execution with time limits
 #
-def __timeout_handler(signum, frame):
-    """Helper function for the timeout() function."""
-
-    raise TimeoutError()
+NOTGIVEN = object()
 
 
-def timeout(func, args=(), kwargs={}, timeout=1.0, threading=True):
+def timeout(func, args=(), kwargs={}, timeout=1.0, default=NOTGIVEN,
+            thread=False):
     """
     Execute callable `func` with timeout. If timeout is None or zero,
     ignores any timeout exceptions.
 
-    If timeout exceeds, raises a TimeoutError.
+    If timeout exceeds, raises a TimeoutError or return the given `default`
+    value.
     """
 
     if timeout is not None and timeout <= 0:
@@ -59,35 +58,48 @@ def timeout(func, args=(), kwargs={}, timeout=1.0, threading=True):
     if not timeout or not 1 / timeout:
         return func(*args, **kwargs)
 
-    if threading:
-        result = []
-        exceptions = []
-
-        def target():
-            try:
-                result.append(func(*args, **kwargs))
-            except Exception as ex:
-                exceptions.append(ex)
-
-        thread = Thread(target=target, daemon=True)
-        thread.start()
-        thread.join(timeout=timeout)
-        if thread.is_alive():
+    # A signals based implementation. This only works on single-threaded
+    # programs.
+    if not thread:
+        def handler(*args):
             raise TimeoutError
-        else:
-            try:
-                return result.pop()
-            except IndexError:
-                raise exceptions.pop()
-    else:
-        signal.signal(signal.SIGALRM, __timeout_handler)
-        signal.alarm(timeout)
+
+        signal.signal(signal.SIGALRM, handler)
+        signal.setitimer(signal.ITIMER_REAL, timeout)
+
         try:
             result = func(*args, **kwargs)
+        except TimeoutError:
+            if default is NOTGIVEN:
+                raise
+            return default
         finally:
             signal.alarm(0)
 
         return result
+
+    # A quick and dirty thread based solution that may leave zombie threads
+    # behind wasting CPU while the sandbox is alive.
+    else:
+        class FuncThread(Thread):
+            def run(self):
+                try:
+                    self.result = func(*args, **kwargs)
+                except Exception as ex:
+                    self.exception = ex
+
+        thread = FuncThread(daemon=True)
+        thread.start()
+        thread.join(timeout=timeout)
+        if thread.is_alive():
+            if default is NOTGIVEN:
+                raise TimeoutError
+            return default
+        else:
+            try:
+                return thread.result
+            except AttributeError:
+                raise thread.exception
 
 
 #

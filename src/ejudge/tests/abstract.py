@@ -2,7 +2,7 @@ import pytest
 import time
 
 from ejudge import functions, registry
-from iospec import parse as parse_string, datatypes, SimpleTestCase, \
+from iospec import parse as parse_string, datatypes, StandardTestCase, \
     ErrorTestCase
 from iospec.exceptions import BuildError
 
@@ -94,7 +94,7 @@ class TestLanguageSupport:
         try:
             assert len(tree) == 1
             case = tree[0]
-            assert isinstance(case, SimpleTestCase)
+            assert isinstance(case, StandardTestCase)
             assert case[0] == 'name: '
             assert case[1] == 'foo'
             assert case[2] == 'hello foo!'
@@ -127,7 +127,7 @@ class TestLanguageSupport:
         assert tree[1][2] == 'hello bar!'
 
     def test_run_valid_source_from_iospec_input(self, src_ok, lang):
-        case1 = datatypes.SimpleTestCase([datatypes.In('foo'), datatypes.Out('foo')])
+        case1 = datatypes.StandardTestCase([datatypes.In('foo'), datatypes.Out('foo')])
         case2 = datatypes.InputTestCase([datatypes.In('bar')])
         inpt = datatypes.IoSpec([case1, case2])
         tree = functions.run(src_ok, inpt, lang=lang, sandbox=False)
